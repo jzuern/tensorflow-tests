@@ -1,0 +1,279 @@
+ --------- Sum reduction ----------- 
+class TensorBase: TensorReductionOp sum(...) (1)
+in constructor 2 of TensorRedutionOp
+in struct TensorEvaluator: *in* TensorEvaluator()
+NumInputDims = 5  NumOutputDims = 2
+in struct DimInitializer1: *in* void run(...) 
+outputIndex = 2    reduceIndex = 3
+in struct DimInitializer1: *out* void run(...) 
+in struct TensorEvaluator: *out* TensorEvaluator
+in class TensorExecutor1: *in* run(...)
+in struct TensorEvaluator: *in* TensorEvaluator()
+NumInputDims = 5  NumOutputDims = 2
+in struct DimInitializer1: *in* void run(...) 
+outputIndex = 2    reduceIndex = 3
+in struct DimInitializer1: *out* void run(...) 
+in struct TensorEvaluator: *out* TensorEvaluator
+in struct TensorEvaluator: *in* evalSubExprsIfNeeded()
+in TensorEvaluator.h evalSubExprsIfNeeded()
+in struct TensorEvaluator: *out* evalSubExprsIfNeeded()
+in struct TensorEvaluator: *in* packet()
+in struct TensorEvaluator: *in* coeff(Index index)
+ NOT innermost dimensions AND NOT runing full reduction
+in struct TensorEvaluator: *in* firstInput()
+                startInput index is: 0
+in struct TensorEvaluator: *out* firstInput()
+in struct GenericDimReducer1: *in* reduce() with DimIndex == 2
+in struct GenericDimReducer1: *in* reduce() with DimIndex == 1
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 0
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 0
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 5
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 13
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 21
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 27
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer1: *out* reduce()
+in struct GenericDimReducer1: *in* reduce() with DimIndex == 1
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 28
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 29
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 32
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 41
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 50
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 50
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer1: *out* reduce()
+in struct GenericDimReducer1: *in* reduce() with DimIndex == 1
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 52
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 54
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 58
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 59
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 60
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 62
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer1: *out* reduce()
+in struct GenericDimReducer1: *out* reduce()
+in struct TensorEvaluator: *out* coeff(Index index) (path 2)
+in struct TensorEvaluator: *in* coeff(Index index)
+ NOT innermost dimensions AND NOT runing full reduction
+in struct TensorEvaluator: *in* firstInput()
+                startInput index is: 1
+in struct TensorEvaluator: *out* firstInput()
+in struct GenericDimReducer1: *in* reduce() with DimIndex == 2
+in struct GenericDimReducer1: *in* reduce() with DimIndex == 1
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 0
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 0
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 5
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 13
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 21
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 27
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer1: *out* reduce()
+in struct GenericDimReducer1: *in* reduce() with DimIndex == 1
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 28
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 29
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 32
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 41
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 50
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 50
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer1: *out* reduce()
+in struct GenericDimReducer1: *in* reduce() with DimIndex == 1
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 52
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 54
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 58
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 59
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 60
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 62
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer1: *out* reduce()
+in struct GenericDimReducer1: *out* reduce()
+in struct TensorEvaluator: *out* coeff(Index index) (path 2)
+in struct TensorEvaluator: *in* coeff(Index index)
+ NOT innermost dimensions AND NOT runing full reduction
+in struct TensorEvaluator: *in* firstInput()
+                startInput index is: 2
+in struct TensorEvaluator: *out* firstInput()
+in struct GenericDimReducer1: *in* reduce() with DimIndex == 2
+in struct GenericDimReducer1: *in* reduce() with DimIndex == 1
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 0
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 0
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 5
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 13
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 21
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 27
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer1: *out* reduce()
+in struct GenericDimReducer1: *in* reduce() with DimIndex == 1
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 28
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 29
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 32
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 41
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 50
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 50
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer1: *out* reduce()
+in struct GenericDimReducer1: *in* reduce() with DimIndex == 1
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 52
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 54
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 58
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 59
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 60
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 62
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer1: *out* reduce()
+in struct GenericDimReducer1: *out* reduce()
+in struct TensorEvaluator: *out* coeff(Index index) (path 2)
+in struct TensorEvaluator: *in* coeff(Index index)
+ NOT innermost dimensions AND NOT runing full reduction
+in struct TensorEvaluator: *in* firstInput()
+                startInput index is: 3
+in struct TensorEvaluator: *out* firstInput()
+in struct GenericDimReducer1: *in* reduce() with DimIndex == 2
+in struct GenericDimReducer1: *in* reduce() with DimIndex == 1
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 0
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 0
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 5
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 13
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 21
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 27
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer1: *out* reduce()
+in struct GenericDimReducer1: *in* reduce() with DimIndex == 1
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 28
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 29
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 32
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 41
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 50
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 50
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer1: *out* reduce()
+in struct GenericDimReducer1: *in* reduce() with DimIndex == 1
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 52
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 54
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 58
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer2: *in* reduce()
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 59
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 60
+in TensorEvaluator.h coeff()
+in struct SumReducer reduce(...). accum = 62
+in struct GenericDimReducer2: *out* reduce()
+in struct GenericDimReducer1: *out* reduce()
+in struct GenericDimReducer1: *out* reduce()
+in struct TensorEvaluator: *out* coeff(Index index) (path 2)
+in struct TensorEvaluator: *out* packet()
+loop 2: Index i = 0 
+in class TensorExecutor1: *out* run(...)
+T_out:
+
+in class TensorExecutor1: *in* run(...)
+in TensorEvaluator.h evalSubExprsIfNeeded()
+in class TensorExecutor1: *out* run(...)
+62 62
+62 62
+
