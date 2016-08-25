@@ -13,9 +13,9 @@
 
 
 ### To build with GPU support:
-´´´
+```
 bazel build -c opt --config=cuda //tensorflow/tools/pip_package:build_pip_package #run this every time build rules, c++ file or python file change)
-´´´
+```
 
 
 ### Startup of tensorflow
@@ -27,15 +27,15 @@ bazel build -c opt --config=cuda //tensorflow/tools/pip_package:build_pip_packag
 ### Compile Tensorflow unit tests with bazel:
 
 run from workspace (tf_installation)
-´´´
+```
 bazel build -c opt --config=cuda //tensorflow/core/kernels:segment_reduction_ops_test
-´´´
+```
 
 ### Run those unit tests:
-´´´
+```
 cd /tf_installation/tensorflow/bazel-bin/tensorflow/core/kernels
 ./segment_reduction_ops_test
-´´´
+```
 
 
 
