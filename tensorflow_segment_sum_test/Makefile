@@ -1,7 +1,11 @@
 # Common includes for tensorflow
-INCLUDES :=-I/home/jzuern/Dropbox/develop/hiwi_mrt/tensorflow/
-INCLUDES +=-I/home/jzuern/Dropbox/develop/hiwi_mrt/tensorflow/bazel-tensorflow/external/eigen_archive/
-INCLUDES +=-I/home/jzuern/Dropbox/develop/hiwi_mrt/tensorflow/bazel-tensorflow/external/eigen_archive/eigen-eigen-334b1d428283/Eigen/src/Core/util/
+INCLUDES :=-I/home/jzuern/tf_installation/tensorflow/
+INCLUDES +=-I/usr/local/lib/python2.7/dist-packages/tensorflow/include/google/protobuf/stubs
+INCLUDES +=-I/home/jzuern/tf_installation/tensorflow/bazel-genfiles/
+INCLUDES +=-I/home/jzuern/tf_installation/tensorflow/bazel-tensorflow/external/eigen_archive/
+INCLUDES +=-I/home/jzuern/tf_installation/tensorflow/bazel-tensorflow/external/eigen_archive/Eigen/src/Core/util/
+INCLUDES +=-I/home/jzuern/tf_installation/tensorflow/bazel-genfiles/tensorflow/core/framework/
+
 
 CC := g++
 CCFLAGS := -std=c++11 -g
@@ -16,8 +20,8 @@ build: unsorted_segment_sum_test
 
 
 unsorted_segment_sum_test.o:unsorted_segment_sum_test.cc
-	#$(CC) $(INCLUDES) $(CCFLAGS) -o $@ -c $<
-	$(CC) $(CCFLAGS) -o $@ -c $< $(INCLUDES)
+	$(CC) $(INCLUDES) $(CCFLAGS) -o $@ -c $<
+	#$(CC) $(CCFLAGS) -o $@ -c $< $(INCLUDES)
 
 unsorted_segment_sum_test: unsorted_segment_sum_test.o
 	$(CC) $(LDFLAGS) -o $@ $+ $(LIBRARIES)
