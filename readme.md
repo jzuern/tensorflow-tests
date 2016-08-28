@@ -33,7 +33,7 @@ bazel build -c opt --config=cuda //tensorflow/core/kernels:segment_reduction_ops
 
 ### Run those unit tests:
 ```
-cd /home/jzuern/tf_installation/tensorflow/bazel-out/local_linux-opt/bin/tensorflow/core/kernels
+cd /home/jzuern//tf_installation/tensorflow/bazel-out/local-opt/bin/tensorflow/core/kernels
 ./segment_reduction_ops_test
 ```
 ### Clear everything compiled by bazel

@@ -36,6 +36,15 @@
 
 
 
+## Gespräch 29.08.
+
+- was ist nun neuer Plan wegen bereits implementierten unsorted_segment_sort.cc GPU CUDA?
+- Habe unsorted_segment_sum.cc und unsorted_segment_sum_gpu.cu.cc nachvollzogen
+- Kompilieren der Unit Tests mit bazel
+- Problem: unit test von unsorted_segment_sum scheint nicht implementiert zu sein (im Gegesatz zu bspw. scatter_op_test.cc u.a.
+
+
+
 ##
 
 - Eigentliche Hiwi Aufgabe: implementierung von slice operationen auf tensor, die bisher in /home/jzuern/Dropbox/develop/hiwi_mrt/tensorflow/tensorflow/core/kernels/segment_reduction_ops.cc sind in Eigen-Syntax überführen (Eigen implementierung als .sliced_sum(...) zusätzlich zu .sum(...) Methode
