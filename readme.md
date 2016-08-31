@@ -33,8 +33,10 @@ bazel build -c opt --config=cuda //tensorflow/core/kernels:segment_reduction_ops
 
 ### Run those unit tests:
 ```
-cd /home/jzuern//tf_installation/tensorflow/bazel-out/local-opt/bin/tensorflow/core/kernels
-./segment_reduction_ops_test
+bazel run //tensorflow/core/kernels:segment_reduction_ops_test --test_output=all --cache_test_results=no -- --benchmarks=all
+
+
+
 ```
 ### Clear everything compiled by bazel
 
@@ -118,7 +120,6 @@ DimInitializer: Initialisiert die Dimensionen des Output-Tensors
 
 - Wann wird CUDA version von Reducer ausgeführt? Welche Dimensionen müssen reduziert werden? scheinbar letzte paar dimensionen
   in Liste
-
 
 
 

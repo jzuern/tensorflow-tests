@@ -73,14 +73,14 @@ class UnsortedSegmentSumOp : public OpKernel {
     }
 
     Tensor* output = nullptr; // initialize output Tensor to nullpointer
-    OP_REQUIRES_OK(context, context->allocate_output(0, output_shape, &output));
+    OP_REQUIRES_OK(context, context->allocate_output(0, output_shape, &output)); // make output tensor of shape output_shape (?)
 
     auto output_flat = output->flat_outer_dims<T>(); // what means flat_outer_dims?
 
     auto data_ptr = data.template flat<T>().data();
     // now perform unsortedSegmentSum with functor:
 
-    
+
     functor::UnsortedSegmentSumFunctor<Device, T, Index>()(
         context, context->template eigen_device<Device>(), output_rows,
         segment_ids.shape(), segment_flat, data.NumElements(), data_ptr,
