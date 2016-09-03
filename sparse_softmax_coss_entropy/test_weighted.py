@@ -1,17 +1,17 @@
 import tensorflow as tf
 
 logits = tf.constant([[1.0, 2.0], [3.0, 4.0]])
-labels = tf.constant([0,1.])
+targets = tf.constant([[1.0, 2.0], [3.0, 4.0]])
+pos_weight = 4.0
 
-sm = tf.nn.sparse_softmax_cross_entropy_with_logits(logits,labels)
+wc = tf.nn.weighted_cross_entropy_with_logits(logits,targets,pos_weight)
 
 # Launch the default graph.
 sess = tf.Session()
 
-result = sess.run(sm)
+result = sess.run(wc)
 print(result)
 
-# ==> [[ 12.]]
 
 # Close the Session when we're done.
 sess.close()
