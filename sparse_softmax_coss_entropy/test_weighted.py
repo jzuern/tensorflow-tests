@@ -6,6 +6,7 @@ pos_weight = 4.0
 
 wc = tf.nn.weighted_cross_entropy_with_logits(logits,targets,pos_weight)
 
+
 # Launch the default graph.
 sess = tf.Session()
 

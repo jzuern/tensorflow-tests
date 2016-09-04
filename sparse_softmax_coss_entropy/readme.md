@@ -1,7 +1,18 @@
+# Note on python files of tensorflow installation
+
+The tensorflow installation is in /home/jzuern/tf_installation/tensorflow/
+
+However, the python files being executed when doing a tf graph lie in:
+
+/usr/local/lib/python2.7/dist-packages/tensorflow/python/ops
+
+These files need to be changed in order implement something new
+
+
 ## call stack sparse_softmax_cross_entropy_with_logits
 
 
-in /home/jzuern/tf_installation/tensorflow/tensorflow/python/ops/nn_ops.py 
+in /usr/local/lib/python2.7/dist-packages/tensorflow/python/ops/nn_ops.py 
 
   def sparse_softmax_cross_entropy_with_logits(logits, labels, name=None):
     
@@ -62,12 +73,42 @@ SparseXentEigenImpl and all the other stuff we need for the actual calculation i
 ## call stack weighted_cross_entropy_with_logits
 
 
-in /home/jzuern/tf_installation/tensorflow/tensorflow/python/ops/nn.py 
+in /usr/local/lib/python2.7/dist-packages/tensorflow/python/ops/nn.py 
 
 
-Note: weighted_cross_entropy_with_logits(...) does not have a C++ OpKernel, its directly implemented in python code
+Note: weighted_cross_entropy_with_logits(...) does not have a C++ OpKernel, its directly implemented as python code
 
 def weighted_cross_entropy_with_logits(logits, targets, pos_weight, name=None):
+
+
+		```
+		  The usual cross-entropy cost is defined as:
+
+		    targets * -log(sigmoid(logits)) + (1 - targets) * -log(1 - sigmoid(logits))
+
+		  The argument `pos_weight` is used as a multiplier for the positive targets:
+
+		    targets * -log(sigmoid(logits)) * pos_weight +
+			(1 - targets) * -log(1 - sigmoid(logits))
+
+		  For brevity, let `x = logits`, `z = targets`, `q = pos_weight`.
+		  The loss is:
+
+			qz * -log(sigmoid(x)) + (1 - z) * -log(1 - sigmoid(x))
+		      = qz * -log(1 / (1 + exp(-x))) + (1 - z) * -log(exp(-x) / (1 + exp(-x)))
+		      = qz * log(1 + exp(-x)) + (1 - z) * (-log(exp(-x)) + log(1 + exp(-x)))
+		      = qz * log(1 + exp(-x)) + (1 - z) * (x + log(1 + exp(-x))
+		      = (1 - z) * x + (qz +  1 - z) * log(1 + exp(-x))
+		      = (1 - z) * x + (1 + (q - 1) * z) * log(1 + exp(-x))
+
+		  Setting `l = (1 + (q - 1) * z)`, to ensure stability and avoid overflow,
+		  the implementation uses
+
+		      (1 - z) * x + l * (log(1 + exp(-abs(x))) + max(-x, 0))
+
+		```
+
+
 
 with ops.name_scope(name, "logistic_loss", [logits, targets]) as name:
     logits = ops.convert_to_tensor(logits, name="logits")
@@ -120,7 +161,7 @@ $ bazel build -c opt //tensorflow/core/user_ops:zero_out.so
 
 does work:
 $ TF_INC=$(python -c 'import tensorflow as tf; print(tf.sysconfig.get_include())')
-$ g++ -std=c++11 -shared zero_out.cc -o zero_out.so -fPIC -I $TF_INC -D_GLIBCXX_USE_CXX11_ABI=0
+$ g++ -std=c++11 -shared sparse_weighted.cc -o sparse_weighted.so -fPIC -I $TF_INC -I /home/jzuern/tf_installation/tensorflow/ -D_GLIBCXX_USE_CXX11_ABI=0
 
 
 ## using the Op in python

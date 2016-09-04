@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 logits = tf.constant([[1.0, 2.0], [3.0, 4.0]])
-labels = tf.constant([0,1.])
+labels = tf.constant([0,1])
 
 sm = tf.nn.sparse_softmax_cross_entropy_with_logits(logits,labels)
 

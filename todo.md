@@ -44,7 +44,14 @@
 - Problem: unit test von unsorted_segment_sum scheint nicht implementiert zu sein (im Gegesatz zu bspw. scatter_op_test.cc u.a.
 
 
+## Gespräch Mail ab 30.08.
+Segment_sum ist bereits implementiert worden, daher Themawechsel
 
-##
 
-- Eigentliche Hiwi Aufgabe: implementierung von slice operationen auf tensor, die bisher in /home/jzuern/Dropbox/develop/hiwi_mrt/tensorflow/tensorflow/core/kernels/segment_reduction_ops.cc sind in Eigen-Syntax überführen (Eigen implementierung als .sliced_sum(...) zusätzlich zu .sum(...) Methode
+3 Mögliche Themen neue Themen
+- sparse_softmax_cross_entropy_with_logits implementieren
+- bilineares Skalieren --> Bereits implementiert worden
+- 3D gaussian Blur (schwer)
+
+
+
