@@ -167,16 +167,16 @@ $ g++ -std=c++11 -shared sparse_weighted.cc -o sparse_weighted.so -fPIC -I $TF_I
 ## using the Op in python
 
 import tensorflow as tf
-zero_out_module = tf.load_op_library('zero_out.so')
+zero_out_module = tf.load_op_library('/home/jzuern/tf_installation/tensorflow/tensorflow/core/user_ops/sparse_weighted.so')
 with tf.Session(''):
   zero_out_module.zero_out([[1, 2], [3, 4]]).eval()
 
-# Prints
-array([[1, 0],
-       [0, 0]], dtype=int32)
 
 
 
+## Problems
 
-
+- Shapefunction has to be commented out in user Kernel cc file because building wont work if not commented out
+- weights To32Bitconst instead of To32Bit ? (sparse_xent_op.h in line 353)
+- test if everything works as intended
 
