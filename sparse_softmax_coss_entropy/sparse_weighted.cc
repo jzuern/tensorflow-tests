@@ -68,6 +68,12 @@ class SparseWeightedOp : public OpKernel {
                     "Must have at least one class, but got logits shape ",
                     logits.shape().DebugString()));
 
+    OP_REQUIRES(context, logits.dim_size(1) == weights.dim_size(0),
+                errors::InvalidArgument(
+                    "2nd dimension of logits and dimension of weight must have the same size, "
+                    "got logits shape ", logits.shape().DebugString(),
+                    " and weights shape ", weights.shape().DebugString()));
+
     Tensor scratch;
     OP_REQUIRES_OK(context, context->allocate_temp(DataTypeToEnum<T>::value,
                                                    labels.shape(), &scratch));
