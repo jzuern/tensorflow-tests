@@ -178,5 +178,4 @@ with tf.Session(''):
 
 - Shapefunction has to be commented out in user Kernel cc file because building wont work if not commented out
 - weights To32Bitconst instead of To32Bit ? (sparse_xent_op.h in line 353)
-- test if everything works as intended
 
