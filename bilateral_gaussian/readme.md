@@ -55,6 +55,9 @@ with tf.Session(''):
 
 
 
-## Problems
-- ...
+## Gespräch 27.09.2016
+
+- übergebe Filter 2 Bilder (to-blur und referenz. Wenn nur 1 Bild angegebn wird, verwende als referenz das bild to-blur)
+
+- Tensorflow-Hashtable anstatt eigene Hash table verwenden
 

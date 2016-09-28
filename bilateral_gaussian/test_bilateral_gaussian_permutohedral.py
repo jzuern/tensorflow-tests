@@ -14,7 +14,7 @@ stdv_col = 0.125
 # input tensor
 shape = [20,20,3] # 20px x 20px image with 3 color channels (RGB)
 
-input = tf.fill(shape, 128)
+input = 128*tf.ones(shape, tf.int32)
 
 
 print("input image:")
@@ -22,7 +22,7 @@ print(input)
 
 
 # calculate loss bilateral gaussian blur
-blur = permutohedral_module.permutohedral_bilateral_gaussian_blur(input,stdv_spat,stdv_col)
+blur = permutohedral_module.bilateral_gaussian_permutohedral(input, stdv_spat, stdv_col)
 
 # Launch the default graph.
 sess = tf.Session()
