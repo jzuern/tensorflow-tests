@@ -7,7 +7,7 @@
 #include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/framework/tensor_shape.h"
-// #include "permutohedral.h"
+#include "permutohedral.h"
 
 
 namespace tensorflow {
@@ -54,59 +54,63 @@ class BilateralGaussianPermutohedralOp : public OpKernel {
                                         image.shape().DebugString())); //jzuern: does not cover all cases
 
 
-    // convert input image to flat EIGEN Tensor
-    auto input = image.flat<int32>();
+    // ----------------------------------------
+    // ------------- NOTES --------------------
+    // ----------------------------------------
+
+    /* I need to convert Tensorflow-internal representation ("Tensor")
+       into Eigen::Tensor by casting it using ".tensor<DATA_TYPE,NDIMS>()"
+       and manipulating its entries using the EIGEN element accessing with indices.
+       This automatically manipulates the entries in the Tensorflow::Tensor as well.
+       (--> no need to cast Tensor back to a TF::Tensor after manipulating)
+       see https://github.com/tensorflow/serving/issues/43
+
+    */
+    // ----------------------------------------
+    // ----------------------------------------
+
+
+    // convert input image to EIGEN Tensor
+    auto input = image.tensor<float,3>();
 
     // allocate output tensor
     Tensor* blurred_out = NULL;
     OP_REQUIRES_OK(context, context->allocate_output(0, image.shape(), &blurred_out));
 
 
-    auto output = blurred_out->flat<int32>();
+
+    // convert parameters to floats
     auto spat = stddev_spat.flat<float>();
     float spat_f = spat(0); // TODO: this is terrible...
 
     auto col  = stddev_spat.flat<float>();
     float col_f = col(0);// TODO: this is terrible...
 
+    // use inverse values for both standard deviations
     const float invSpatialStdev = 1.0f/spat_f;
     const float invColorStdev = 1.0f/col_f;
 
     // Construct the position vectors out of x, y, r, g, and b.
-    Tensor* positions(1, image.dim_size(0), image.dim_size(0), 5);
+    Tensor positions(DT_FLOAT, TensorShape({image.dim_size(0), image.dim_size(1), 5}));
 
-
-    // for (int y = 0; y < input.height; y++) {
-    //         for (int x = 0; x < input.width; x++) {
-    //                 positions(x, y)[0] = invSpatialStdev * x;
-    //                 positions(x, y)[1] = invSpatialStdev * y;
-    //                 positions(x, y)[2] = invColorStdev * input(x, y)[0];
-    //                 positions(x, y)[3] = invColorStdev * input(x, y)[1];
-    //                 positions(x, y)[4] = invColorStdev * input(x, y)[2];
-    //         }
-    // }
-
-    // Filter the input with respect to the position vectors. (see permutohedral.h)
-    // Image out = PermutohedralLattice::filter(input, positions);
+    // again, convert Tensorflow::Tensor to EIGEN::Tensor
+    auto positions_eigen = positions.tensor<float,3>();
 
     //
-    // // We learn: we can access tensor elements of flattened-out tensor by simply
-    // // calling them with operator()
-    // const int N = input.size();
-    // for (int i = 1; i < N; i++) {
-    //   output(i) = i;
-    //   printf("i = %i", i);
-    // }
+    for (int y = 0; y < image.dim_size(0); y++) {
+            for (int x = 0; x < image.dim_size(1); x++) {
 
+                    positions_eigen(x, y, 0) = invSpatialStdev * x;
+                    positions_eigen(x, y, 1) = invSpatialStdev * y;
+                    positions_eigen(x, y, 2) = invColorStdev * input(x, y, 0);
+                    positions_eigen(x, y, 3) = invColorStdev * input(x, y, 1);
+                    positions_eigen(x, y, 4) = invColorStdev * input(x, y, 2);
 
-    // start Permutohedral code here...
+            }
+    }
 
-
-
-
-
-
-
+    // Filter the input with respect to the position vectors. (see permutohedral.h)
+    PermutohedralLattice::filter(image,positions,blurred_out);
 
 
 
