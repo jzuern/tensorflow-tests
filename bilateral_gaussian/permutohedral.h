@@ -14,6 +14,12 @@
 #include <sys/time.h>
 
 
+typedef Eigen::TensorMap<Eigen::Tensor<float, 3, 1, long int>, 16> eigen3tensor;
+typedef Eigen::TensorMap<Eigen::Tensor<const float, 3, 1, long int>, 16> eigen3tensorconst;
+
+// typedef Eigen::Tensor<float,3,Eigen::RowMajor> eigen3tensor; // jzuern
+
+
 using namespace std;
 
 /***************************************************************/
@@ -174,51 +180,48 @@ private:
  *
  */
 /***************************************************************/
+
 class PermutohedralLattice {
 public:
 
         /* Filters given image against a reference image.
-         *   im : image to be bilateral-filtered.
-         *  ref : reference image whose edges are to be respected.
+         *   image_eigen: image to be bilateral-filtered.
+         *   ref_eigen:   reference image whose edges are to be respected.
+         *   *out_eigen:  pointer to memory block where the output is going
+         *                to be stored
          */
 
 
-        static void filter(tensorflow::Tensor image, tensorflow::Tensor ref, tensorflow::Tensor* out) {
+        static void filter(eigen3tensorconst image_eigen, eigen3tensor ref_eigen, eigen3tensor *out_eigen) {
 
-          // cast tensors of type TF::Tensor to EIGEN::Tensor types
-          auto out_eigen       = out->tensor<float,3>();
-          auto image_eigen     = image.tensor<float,3>();
-          auto ref_eigen       = ref.tensor<float,3>();
-
-          int nChannels = 3;
-
+          int nChannels = 3; // TODO: hardcoded number of channels (should be variable)
 
           timeval t[5];
+          gettimeofday(t+0, NULL);
+
 
           // Create lattice
-          gettimeofday(t+0, NULL);
-          PermutohedralLattice lattice(nChannels, nChannels+1, image_eigen.dimension(0)*image_eigen.dimension(1)*1);
+          PermutohedralLattice lattice(nChannels, nChannels+1, image_eigen.dimension(0)*image_eigen.dimension(1));
 
           // Splat into the lattice
           gettimeofday(t+1, NULL); printf("Splatting...\n");
 
           float *col = new float[nChannels+1];
-          col[nChannels] = 1; // homogeneous coordinate
+          col[nChannels] = 1.0; // homogeneous coordinate
+          float *tmp = new float[nChannels];
 
 
-
-                  for (int y = 0; y < image_eigen.dimension(0); y++) {
-                          for (int x = 0; x < image_eigen.dimension(1); x++) {
-                                  for (int c = 0; c < nChannels; c++) {
-                                          col[c] = image_eigen(x,y,c);
-                                  }
-
-                                  std::vector<float> a(3); // TODO: this is terrible
-                                  for(int i = 0; i < 3; i++) a[i] = ref_eigen(x,y,i);
-                                  // refPtr is pointing to ref image entries ref(x,y,<all>)
-                                  lattice.splat(a, col);
+          for (int y = 0; y < image_eigen.dimension(0); y++) {
+                  for (int x = 0; x < image_eigen.dimension(1); x++) {
+                          for (int c = 0; c < nChannels; c++) {
+                                  col[c] = image_eigen(x,y,c);
                           }
+                          for(int zz = 0; zz < nChannels; zz++)  tmp[zz] = ref_eigen(x,y,zz);
+
+                          lattice.splat(tmp,col);
+
                   }
+          }
 
 
           // Blur the lattice
@@ -227,7 +230,6 @@ public:
 
           // Slice from the lattice
           gettimeofday(t+3, NULL); printf("Slicing...\n");
-          // Eigen::Tensor<float,3> out(image_eigen.dimension(0), image_eigen.dimension(1), nChannels);
 
           lattice.beginSlice();
           for (int y = 0; y < image_eigen.dimension(0); y++) {
@@ -235,7 +237,7 @@ public:
                             lattice.slice(col);
                             float scale = 1.0f/col[3];
                             for (int c = 0; c < nChannels; c++) {
-                                    out_eigen(x,y,c) = col[c]*scale;
+                                    (*out_eigen)(x,y,c) = col[c]*scale;
                             }
                     }
             }
@@ -246,6 +248,26 @@ public:
           for (int i = 1; i < 5; i++)
                   printf("%s: %3.3f ms\n", names[i-1], (t[i].tv_sec - t[i-1].tv_sec) +
                           (t[i].tv_usec - t[i-1].tv_usec)/1000000.0);
+
+
+
+
+
+
+            // printf("\n This is the output after filtering: \n");
+            // for (int c = 0; c < nChannels; c++) {
+            //    printf("Channel %i:\n",c);
+            //    for (int y = 0; y < out_eigen->dimension(0); y++) {
+            //       for (int x = 0; x < out_eigen->dimension(1); x++) {
+            //           printf("%e ",(*out_eigen)(x,y,c));
+            //         }
+            //       }
+            //       printf("\n");
+            //   }
+            //   printf("\n");
+
+
+
 
         }
 
@@ -302,7 +324,10 @@ public:
 
 
         /* Performs splatting with given position and value vectors */
-        void splat(std::vector<float> position, float *value) {
+        // void splat(std::vector<float> position, float *value) {
+        void splat(float* position, float *value) {
+
+                // printf(" d = %i\n", d);
 
                 // first rotate position into the (d+1)-dimensional hyperplane
                 elevated[d] = -d*position[d-1]*scaleFactor[d-1];
@@ -310,6 +335,7 @@ public:
                         elevated[i] = (elevated[i+1] -
                                        i*position[i-1]*scaleFactor[i-1] +
                                        (i+2)*position[i]*scaleFactor[i]);
+
                 elevated[0] = elevated[1] + 2*position[0]*scaleFactor[0];
 
                 // prepare to find the closest lattice points
