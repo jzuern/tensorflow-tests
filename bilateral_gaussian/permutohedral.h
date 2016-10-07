@@ -17,9 +17,6 @@
 typedef Eigen::TensorMap<Eigen::Tensor<float, 3, 1, long int>, 16> eigen3tensor;
 typedef Eigen::TensorMap<Eigen::Tensor<const float, 3, 1, long int>, 16> eigen3tensorconst;
 
-// typedef Eigen::Tensor<float,3,Eigen::RowMajor> eigen3tensor; // jzuern
-
-
 using namespace std;
 
 /***************************************************************/
@@ -192,13 +189,15 @@ public:
          */
 
 
-        static void filter(eigen3tensorconst image_eigen, eigen3tensor ref_eigen, eigen3tensor *out_eigen) {
+        static void filter(eigen3tensorconst image_eigen, eigen3tensor ref_eigen, eigen3tensor *out_eigen,  const bool reverse) {
 
-          int nChannels = 3; // TODO: hardcoded number of channels (should be variable)
-
+          // time keeping for performance measurements
           timeval t[5];
           gettimeofday(t+0, NULL);
 
+
+          // get number of color channels
+          const int nChannels = image_eigen.dimension(2);
 
           // Create lattice
           PermutohedralLattice lattice(nChannels, nChannels+1, image_eigen.dimension(0)*image_eigen.dimension(1));
@@ -207,33 +206,34 @@ public:
           gettimeofday(t+1, NULL); printf("Splatting...\n");
 
           float *col = new float[nChannels+1];
-          col[nChannels] = 1.0; // homogeneous coordinate
           float *tmp = new float[nChannels];
 
+          col[nChannels] = 1.0; // homogeneous coordinate
 
-          for (int y = 0; y < image_eigen.dimension(0); y++) {
-                  for (int x = 0; x < image_eigen.dimension(1); x++) {
+
+          for (int y = 0; y < image_eigen.dimension(1); y++) {
+                  for (int x = 0; x < image_eigen.dimension(0); x++) {
+
                           for (int c = 0; c < nChannels; c++) {
                                   col[c] = image_eigen(x,y,c);
+                                  tmp[c] = ref_eigen(x,y,c);
                           }
-                          for(int zz = 0; zz < nChannels; zz++)  tmp[zz] = ref_eigen(x,y,zz);
 
                           lattice.splat(tmp,col);
-
                   }
           }
 
 
           // Blur the lattice
           gettimeofday(t+2, NULL); printf("Blurring...");
-          lattice.blur();
+          lattice.blur(reverse);
 
           // Slice from the lattice
           gettimeofday(t+3, NULL); printf("Slicing...\n");
 
           lattice.beginSlice();
-          for (int y = 0; y < image_eigen.dimension(0); y++) {
-                    for (int x = 0; x < image_eigen.dimension(1); x++) {
+          for (int y = 0; y < image_eigen.dimension(1); y++) {
+                    for (int x = 0; x < image_eigen.dimension(0); x++) {
                             lattice.slice(col);
                             float scale = 1.0f/col[3];
                             for (int c = 0; c < nChannels; c++) {
@@ -248,25 +248,6 @@ public:
           for (int i = 1; i < 5; i++)
                   printf("%s: %3.3f ms\n", names[i-1], (t[i].tv_sec - t[i-1].tv_sec) +
                           (t[i].tv_usec - t[i-1].tv_usec)/1000000.0);
-
-
-
-
-
-
-            // printf("\n This is the output after filtering: \n");
-            // for (int c = 0; c < nChannels; c++) {
-            //    printf("Channel %i:\n",c);
-            //    for (int y = 0; y < out_eigen->dimension(0); y++) {
-            //       for (int x = 0; x < out_eigen->dimension(1); x++) {
-            //           printf("%e ",(*out_eigen)(x,y,c));
-            //         }
-            //       }
-            //       printf("\n");
-            //   }
-            //   printf("\n");
-
-
 
 
         }
@@ -436,7 +417,7 @@ public:
         }
 
         /* Performs a Gaussian blur along each projected axis in the hyperplane. */
-        void blur() {
+        void blur(const bool reverse) {
                 // Prepare arrays
                 short *neighbor1 = new short[d+1];
                 short *neighbor2 = new short[d+1];
@@ -448,7 +429,9 @@ public:
                 for (int k = 0; k < vd; k++) zero[k] = 0;
 
                 // For each of d+1 axes,
-                for (int j = 0; j <= d; j++) {
+                // for (int j = 0; j <= d; j++) {
+                for (int j=reverse?d:0; j <= d && j >= 0; reverse?j--:j++) { // new
+
                         printf(" %d", j); fflush(stdout);
 
                         // For each vertex in the lattice,

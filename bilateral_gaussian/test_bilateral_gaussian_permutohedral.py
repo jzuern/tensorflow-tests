@@ -22,12 +22,15 @@ stdv_spat = 5.0
 # color standard deviation
 stdv_col = 0.125
 
+# should we go through blurring reversed? needed for backpropagation (either 1 or 0)
+reverse = 1
+
 # convert mpimg image to tensorflow tensor object
 image_tensor = tf.convert_to_tensor(image, dtype=tf.float32)
 
 
 # calculate bilateral gaussian blur
-blur = permutohedral_module.bilateral_gaussian_permutohedral(image_tensor, stdv_spat, stdv_col)
+blur = permutohedral_module.bilateral_gaussian_permutohedral(image_tensor, stdv_spat, stdv_col, reverse)
 
 # Launch the default graph.
 sess = tf.Session()

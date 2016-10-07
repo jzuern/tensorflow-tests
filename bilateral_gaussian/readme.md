@@ -30,7 +30,14 @@ $ g++ -std=c++11 -shared sparse_weighted.cc -o sparse_weighted.so -fPIC -I $TF_I
 
 - übergebe Filter 2 Bilder (to-blur und referenz. Wenn nur 1 Bild angegebn wird, verwende als referenz das bild to-blur)
 
+
+
 - Tensorflow-Hashtable anstatt eigene Hash table verwenden
+
+Probleme: 
+- Lookup Table von TF hat keine grow() Methode (die wir aber brauchen)
+- Lookup Table von TF hat keine lookupOffset Methode (Was macht diese genau??)
+
 
 
 
