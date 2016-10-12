@@ -1,43 +1,17 @@
-# Note on python files of tensorflow installation
-
-The tensorflow installation is in /home/jzuern/tf_installation/tensorflow/
-
-However, the python files being executed when doing a tf graph lie in:
-
-/usr/local/lib/python2.7/dist-packages/tensorflow/python/ops
-
-These files need to be changed in order implement something new
-
-
-
-
-## implementing a custom Op
-
-
-does not work:
-$ bazel build -c opt //tensorflow/core/user_ops:zero_out.so
-
-does work:
-$ TF_INC=$(python -c 'import tensorflow as tf; print(tf.sysconfig.get_include())')
-$ g++ -std=c++11 -shared sparse_weighted.cc -o sparse_weighted.so -fPIC -I $TF_INC -I /home/jzuern/tf_installation/tensorflow/ -D_GLIBCXX_USE_CXX11_ABI=0
-
-
-
 
 
 
 ## TO Do
 
-- übergebe Filter 2 Bilder (to-blur und referenz. Wenn nur 1 Bild angegebn wird, verwende als referenz das bild to-blur)
+- implementiere reverse blur, sodass backpropagation geht
 
-
+Wie?
+--> mache neuen Op als Gradient und teile so viel Code mit altem CustomOp wie möglich
 
 - Tensorflow-Hashtable anstatt eigene Hash table verwenden
 
-Probleme: 
+Probleme:
 - Lookup Table von TF hat keine grow() Methode (die wir aber brauchen)
 - Lookup Table von TF hat keine lookupOffset Methode (Was macht diese genau??)
-
-
-
-
+- Lookup Table ist eher im Sinne eines Op implementiert. Weiß nicht so recht, was ich damit anfangen soll...
+- Warum wird splatting, blurring und slicing 2x durchlaufen??

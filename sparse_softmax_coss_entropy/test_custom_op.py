@@ -5,8 +5,6 @@ zero_out_module = tf.load_op_library('/home/jzuern/tf_installation/tensorflow/te
 
 
 with tf.Session(''):
-  zero_out_module.zero_out([[1, 2], [3, 4]]).eval()
+  a = zero_out_module.zero_out([[5, 2], [3, 4]]).eval()
 
-# Prints
-array([[1, 0],
-       [0, 0]], dtype=int32)
+print a

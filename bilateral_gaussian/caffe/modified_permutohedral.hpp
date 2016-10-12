@@ -514,7 +514,7 @@ void ModifiedPermutohedral::seqCompute(double* out, const double* in, int value_
         values[ o*value_size+k ] += w * static_cast<float>(in[k*N_ + i]);
     }
   }
-
+ // blurring
   for( int j=reverse?d_:0; j<=d_ && j>=0; reverse?j--:j++ ){
     for( int i=0; i<M_; i++ ){
       float * old_val = values + (i+1)*value_size;

@@ -191,6 +191,8 @@ public:
 
         static void filter(eigen3tensorconst image_eigen, eigen3tensor ref_eigen, eigen3tensor *out_eigen,  const bool reverse) {
 
+          printf("in static void filter...\n");
+
           // time keeping for performance measurements
           timeval t[5];
           gettimeofday(t+0, NULL);
