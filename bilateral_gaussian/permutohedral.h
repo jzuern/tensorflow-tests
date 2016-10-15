@@ -183,23 +183,41 @@ public:
 
         /* Filters given image against a reference image.
          *   image_eigen: image to be bilateral-filtered.
-         *   ref_eigen:   reference image whose edges are to be respected.
          *   *out_eigen:  pointer to memory block where the output is going
          *                to be stored
          */
 
 
-        static void filter(eigen3tensorconst image_eigen, eigen3tensor ref_eigen, eigen3tensor *out_eigen,  const bool reverse) {
+        static void filter(eigen3tensorconst image_eigen, eigen3tensor *out_eigen, const float spat_f, const float col_f, const bool reverse) {
 
-          printf("in static void filter...\n");
+
+
 
           // time keeping for performance measurements
           timeval t[5];
           gettimeofday(t+0, NULL);
 
-
           // get number of color channels
           const int nChannels = image_eigen.dimension(2);
+
+          // use inverse values for both standard deviations
+          const float invSpatialStdev = 1.0f/spat_f;
+          const float invColorStdev = 1.0f/col_f;
+
+          // Construct the position vectors out of x, y, r, g, and b.
+          // ref_eigen is the image whose edges have to be respected while blurring
+          Eigen::Tensor<float, 3> ref_eigen(image_eigen.dimension(0), image_eigen.dimension(1), nChannels + 2);
+
+
+          for (int y = 0; y < image_eigen.dimension(1); y++) {
+                  for (int x = 0; x < image_eigen.dimension(0); x++) {
+                          ref_eigen(x, y, 0) = invSpatialStdev * x;
+                          ref_eigen(x, y, 1) = invSpatialStdev * y;
+                          ref_eigen(x, y, 2) = invColorStdev * ref_eigen(x, y, 0);
+                          ref_eigen(x, y, 3) = invColorStdev * ref_eigen(x, y, 1);
+                          ref_eigen(x, y, 4) = invColorStdev * ref_eigen(x, y, 2);
+                  }
+          }
 
           // Create lattice
           PermutohedralLattice lattice(nChannels, nChannels+1, image_eigen.dimension(0)*image_eigen.dimension(1));
@@ -215,7 +233,6 @@ public:
 
           for (int y = 0; y < image_eigen.dimension(1); y++) {
                   for (int x = 0; x < image_eigen.dimension(0); x++) {
-
                           for (int c = 0; c < nChannels; c++) {
                                   col[c] = image_eigen(x,y,c);
                                   tmp[c] = ref_eigen(x,y,c);
