@@ -7,7 +7,7 @@ class MirroredArray {
     MirroredArray(size_t len) {
 	size = len;
 	host = new T[len];
-	owner = true;
+	owner = true;	
 #ifdef CUDA_MEMORY_H
 	allocateCudaMemory((void**)&(device), len*sizeof(T));
 #else
@@ -16,17 +16,17 @@ class MirroredArray {
     }
 
     MirroredArray(T *data, size_t len) {
-    	size = len;
-    	host = data;
-    	owner = false;
-    	CUDA_SAFE_CALL(cudaMalloc((void**)&(device), len*sizeof(T)));
-    	hostToDevice();
+	size = len;
+	host = data;
+	owner = false;
+	CUDA_SAFE_CALL(cudaMalloc((void**)&(device), len*sizeof(T)));
+	hostToDevice();
     }
 
     void hostToDevice() {
 	CUDA_SAFE_CALL(cudaMemcpy(device, host, size*sizeof(T), cudaMemcpyHostToDevice));
     }
-
+    
     void deviceToHost() {
 	CUDA_SAFE_CALL(cudaMemcpy(host, device, size*sizeof(T), cudaMemcpyDeviceToHost));
     }

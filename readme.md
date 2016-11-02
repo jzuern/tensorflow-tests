@@ -4,7 +4,7 @@
 
 - im Makefile immer gcc-4.8 als compiler angeben (Kompabilität)
 - habe Grafikkarte GT 755M
-- cuda compute capability 3.0
+- cuda compute capability 3.0 (-arch=sm_20)
 
 - Musste bei bazel makefile änderungen vornehmen ( siehe hier: https://github.com/tensorflow/tensorflow/issues/1066#issuecomment-200580370)
  

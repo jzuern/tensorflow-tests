@@ -15,18 +15,15 @@
 
 #include "MirroredArray.h"
 #include "hash_table.cu"
-
+  
 #ifdef LIBRARY
 extern "C"
 #ifdef WIN32
 __declspec(dllexport)
 #endif
 #endif
-
-
-
 void initCuda(int argc, char **argv) {
-    CUT_DEVICE_INIT(argc, argv);
+    CUT_DEVICE_INIT(argc, argv);    
 
     cudaDeviceProp prop;
     CUDA_SAFE_CALL_NO_SYNC(cudaGetDeviceProperties(&prop, 0));
@@ -50,16 +47,16 @@ struct MatrixEntry {
 };
 
 template<int pd>
-__global__ static void createMatrix(const int w, const int h,
-				    const float *positions,
-				    const float *values,
+__global__ static void createMatrix(const int w, const int h, 
+				    const float *positions, 
+				    const float *values, 
 				    const float *scaleFactor,
 				    MatrixEntry *matrix) {
 
     // scanline order
     //const int idx = blockIdx.x * BLOCK_SIZE + threadIdx.x;
 
-    // 8x8 blocks
+    // 8x8 blocks    
     const int x = threadIdx.x + blockIdx.x * blockDim.x;
     const int y = threadIdx.y + blockIdx.y * blockDim.y;
     const int threadId = threadIdx.y*blockDim.x + threadIdx.x;
@@ -80,13 +77,13 @@ __global__ static void createMatrix(const int w, const int h,
 
 	myElevated[pd] = -pd*(myPosition[pd-1])*scaleFactor[pd-1];
 	for (int i = pd-1; i > 0; i--) {
-	    myElevated[i] = (myElevated[i+1] -
-			     i*(myPosition[i-1])*scaleFactor[i-1] +
+	    myElevated[i] = (myElevated[i+1] - 
+			     i*(myPosition[i-1])*scaleFactor[i-1] + 
 			     (i+2)*(myPosition[i])*scaleFactor[i]);
 	}
 	myElevated[0] = myElevated[1] + 2*(myPosition[0])*scaleFactor[0];
-
-
+	
+		
 	// find the closest zero-colored lattice point
 
 	// greedily search for the closest zero-colored lattice point
@@ -103,7 +100,7 @@ __global__ static void createMatrix(const int w, const int h,
 	    sum += myGreedy[i];
 	}
 	sum /= pd+1;
-
+	
 	// sort differential to find the permutation between this simplex and the canonical one
 	for (int i = 0; i <= pd; i++) {
 	    myRank[i] = 0;
@@ -115,7 +112,7 @@ __global__ static void createMatrix(const int w, const int h,
 		}
 	    }
 	}
-
+	
 	if (sum > 0) { // sum too large, need to bring down the ones with the smallest differential
 	    for (int i = 0; i <= pd; i++) {
 		if (myRank[i] >= pd + 1 - sum) {
@@ -147,7 +144,7 @@ __global__ static void createMatrix(const int w, const int h,
 	for (int i = 0; i <= pd+1; i++) {
 	    myBarycentric[i] = 0;
 	}
-
+	
 	for (int i = 0; i <= pd; i++) {
 	    float delta = (myElevated[i] - myGreedy[i]) * (1.0f/(pd+1));
 	    myBarycentric[pd-myRank[i]] += delta;
@@ -174,7 +171,7 @@ __global__ static void createMatrix(const int w, const int h,
 	    if (myRank[i] == pd-color) cumulative_hash += hOffset[i];
 	}
 	#endif
-
+	
 	if (!outOfBounds) {
 	    MatrixEntry r;
 	    #ifdef USE_ADDITIVE_HASH
@@ -185,13 +182,13 @@ __global__ static void createMatrix(const int w, const int h,
 	    r.weight = myBarycentric[color];
 	    matrix[idx*(pd+1) + color] = r;
 	}
-    }
+    }    
 }
 
 template<int kd>
 __global__ static void cleanHashTable(int n, MatrixEntry *matrix) {
     const int idx = (blockIdx.y * gridDim.x + blockIdx.x) * blockDim.x * blockDim.y + threadIdx.x;
-
+    
     if (idx >= n) return;
 
     // find my hash table entry
@@ -207,7 +204,7 @@ __global__ static void cleanHashTable(int n, MatrixEntry *matrix) {
 	// earlier, so it's no problem as long as we rehash now.
 
         #ifdef LINEAR_D_MEMORY
-        // Get my key
+        // Get my key      
         short myKey[kd];
         generateKey<kd>(*e, myKey);
 	*e = hashTableRetrieve<kd>(myKey);
@@ -221,20 +218,20 @@ __global__ static void cleanHashTable(int n, MatrixEntry *matrix) {
 
 template<int pd, int vd>
 __global__ static void splat(const int w, const int h, float *values, MatrixEntry *matrix) {
-    //const int idx = blockIdx.x * BLOCK_SIZE + threadIdx.x;
-
-    // 8x8 blocks
+    //const int idx = blockIdx.x * BLOCK_SIZE + threadIdx.x;    
+    
+    // 8x8 blocks    
     const int x = threadIdx.x + blockIdx.x * blockDim.x;
     const int y = threadIdx.y + (blockIdx.y/(pd+1)) * blockDim.y;
     //const int threadId = threadIdx.y*blockDim.x + threadIdx.x;
     const int color = blockIdx.y % (pd+1);
     const int idx = y*w + x;
     const bool outOfBounds = (x >= w) || (y >= h);
-
+    
     if (outOfBounds) return;
-
+    
     float *myValue = values + idx*vd;
-
+    
     MatrixEntry r = matrix[idx*(pd+1)+color];
     matrix[idx*(pd+1)+color].index = r.index = table_entries[r.index];
     float *val = table_values + r.index*(vd+1);
@@ -253,39 +250,39 @@ __global__ static void splatCache(const int w, const int h, float *values, Matri
     const int color = blockIdx.y % (pd+1);
     const int idx = y*w + x;
     const bool outOfBounds = (x >= w) || (y >= h);
-
+    
     __shared__ int sharedOffsets[BLOCK_SIZE];
     __shared__ float sharedValues[BLOCK_SIZE*(vd+1)];
     int myOffset = -1;
     float *myValue = sharedValues + threadId*(vd+1);
-
+    
     if (!outOfBounds) {
-
+	
 	float *value = values + idx*vd;
-
+	
 	MatrixEntry r = matrix[idx*(pd+1)+color];
-
+	
 	// convert the matrix entry from a pointer into the entries array to a pointer into the keys/values array
 	matrix[idx*(pd+1)+color].index = r.index = table_entries[r.index];
 	// record the offset into the keys/values array in shared space
 	myOffset = sharedOffsets[threadId] = r.index*(vd+1);
-
+	
 	for (int j = 0; j < vd; j++) {
 	    myValue[j] = value[j]*r.weight;
 	}
 	myValue[vd] = r.weight;
-
+	
     } else {
 	sharedOffsets[threadId] = -1;
     }
-
+    
     __syncthreads();
-
+    
     // am I the first thread in this block to care about this key?
-
+    
     if (outOfBounds) return;
-
-    for (int i = 0; i < BLOCK_SIZE; i++) {
+    
+    for (int i = 0; i < BLOCK_SIZE; i++) { 
 	if (i < threadId) {
 	    if (myOffset == sharedOffsets[i]) {
 		// somebody else with higher priority cares about this key
@@ -300,7 +297,7 @@ __global__ static void splatCache(const int w, const int h, float *values, Matri
 	    }
 	}
     }
-
+    
     // only the threads with something to write to main memory are still going
     float *val = table_values + myOffset;
     for (int j = 0; j <= vd; j++) {
@@ -326,13 +323,13 @@ __global__ static void blur(int n, float *newValues, MatrixEntry *matrix, int co
     #ifdef LINEAR_D_MEMORY
     generateKey<pd>(idx, myKey);
     for (int i = 0; i < pd; i++) {
-	np[i] = myKey[i]+1;
+	np[i] = myKey[i]+1;    
 	nm[i] = myKey[i]-1;
     }
     #else
     for (int i = 0; i < pd; i++) {
         myKey[i] = table_keys[idx*pd+i];
-	np[i] = myKey[i]+1;
+	np[i] = myKey[i]+1;    
 	nm[i] = myKey[i]-1;
     }
     #endif
@@ -351,7 +348,7 @@ __global__ static void blur(int n, float *newValues, MatrixEntry *matrix, int co
 
     float *valMe = table_values + (vd+1)*idx;
     float *valNp = table_values + (vd+1)*offNp;
-    float *valNm = table_values + (vd+1)*offNm;
+    float *valNm = table_values + (vd+1)*offNm;	
     float *valOut = newValues + (vd+1)*idx;
 
     if (offNp >= 0 && offNm >= 0) {
@@ -368,15 +365,15 @@ __global__ static void blur(int n, float *newValues, MatrixEntry *matrix, int co
 	}
     } else {
 	for (int i = 0; i <= vd; i++) {
-	    valOut[i] = valMe[i]*2;
+	    valOut[i] = valMe[i]*2;	    
 	}
     }
-
+    
 }
 
 template<int pd, int vd>
 __global__ static void slice(const int w, const int h, float *values, MatrixEntry *matrix) {
-    //const int idx = blockIdx.x * BLOCK_SIZE + threadIdx.x;
+    //const int idx = blockIdx.x * BLOCK_SIZE + threadIdx.x;    
 
     const int x = threadIdx.x + blockIdx.x * blockDim.x;
     const int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -405,12 +402,12 @@ __global__ static void slice(const int w, const int h, float *values, MatrixEntr
     }
 
     myWeight = 1.0f/myWeight;
-    for (int j = 0; j < vd; j++)
+    for (int j = 0; j < vd; j++) 
 	values[idx*vd + j] = myValue[j]*myWeight;
 }
-
+ 
 template<int vd, int pd>
-void filter_(float *im, float *ref, int w, int h, bool accurate) {
+void filter_(float *im, float *ref, int w, int h, bool accurate) {    
     int n = w*h;
     float blurVariance = accurate ? 0.5 : 0;
 
@@ -433,32 +430,9 @@ void filter_(float *im, float *ref, int w, int h, bool accurate) {
     unsigned int __host_div_c = 2*(n*(pd+1));
     unsigned int __host_div_l = ceilf(logf((float)__host_div_c) / logf(2.0f));
     unsigned int __host_div_m = (__host_two32<<__host_div_l)/__host_div_c - __host_two32 + 1;
-
-
-
-    CUDA_SAFE_CALL(cudaMemcpyToSymbol((char*)&__div_c, &__host_div_c, sizeof(unsigned int))); // runtime error. why?
-    CUDA_SAFE_CALL(cudaMemcpyToSymbol((char*)&__div_l, &__host_div_l, sizeof(unsigned int))); // runtime error. why?
-    CUDA_SAFE_CALL(cudaMemcpyToSymbol((char*)&__div_m, &__host_div_m, sizeof(unsigned int))); // runtime error. why?
-
-
-
-    // ------------------------------------------------------------------------------------
-
-    // CUDA_SAFE_CALL(cudaMemcpyToSymbol(__div_c, __host_div_c, sizeof(unsigned int))); // runtime error. why?
-
-    //In short, because cudaMemcpy can't do the same thing as cudaMemcpyToSymbol without an additional API call. Consider a constant memory array:
-    // float hostData;
-    //
-    // //To copy values to this array using cudaMemcpyToSymbol, just do
-    //
-    // // CUDA_SAFE_CALL(cudaMemcpyToSymbol(coeffs, hostData, 2*sizeof(float)));
-    // //To do the same with cudaMemcpy requires this:
-    //
-    // float *dcoeffs;
-    // cudaGetSymbolAddress((void **)&dcoeffs, coeffs);
-    // cudaMemcpy(dcoeffs, hostData, sizeof(float), cudaMemcpyHostToDevice);
-
-// ------------------------------------------------------------------------------------
+    CUDA_SAFE_CALL(cudaMemcpyToSymbol((char*)&__div_c, &__host_div_c, sizeof(unsigned int)));
+    CUDA_SAFE_CALL(cudaMemcpyToSymbol((char*)&__div_l, &__host_div_l, sizeof(unsigned int)));
+    CUDA_SAFE_CALL(cudaMemcpyToSymbol((char*)&__div_m, &__host_div_m, sizeof(unsigned int)));
 
     // Populate constant memory with hash of offset vectors
     unsigned int hOffset_host[pd+1];
@@ -467,29 +441,29 @@ void filter_(float *im, float *ref, int w, int h, bool accurate) {
     for (int i = 0; i <= pd; i++) {
       offset[i] -= pd+1; hOffset_host[i] = hash<pd>(offset); offset[i] += pd+1;
     }
-    CUDA_SAFE_CALL(cudaMemcpyToSymbol((char*)&hOffset, &hOffset_host, sizeof(unsigned int)*(pd+1))); // runtime error. why?
+    CUDA_SAFE_CALL(cudaMemcpyToSymbol((char*)&hOffset, &hOffset_host, sizeof(unsigned int)*(pd+1)));
 
     dim3 blocks((w-1)/8+1, (h-1)/8+1, 1);
     dim3 blockSize(8, 8, 1);
 
     timeval t[7];
 
-    gettimeofday(t+0, NULL);
+    gettimeofday(t+0, NULL);    
 
-    createMatrix<pd><<<blocks, blockSize>>>(w, h, positions.device,
-					    values.device,
+    createMatrix<pd><<<blocks, blockSize>>>(w, h, positions.device, 
+					    values.device, 
 					    scaleFactor.device,
 					    matrix.device);
 
     CUT_CHECK_ERROR("Matrix creation failed\n");
 
-    gettimeofday(t+1, NULL);
+    gettimeofday(t+1, NULL);    
 
     //HashTable hostTable;
     //int hashTableEntries;
     //CUDA_SAFE_CALL(cudaMemcpy(&hostTable, table, sizeof(HashTable), cudaMemcpyDeviceToHost));
     //CUDA_SAFE_CALL(cudaMemcpy(&hashTableEntries, hostTable_filled, sizeof(int), cudaMemcpyDeviceToHost));
-    //printf("Hash table has %d entries\n", hashTableEntries);
+    //printf("Hash table has %d entries\n", hashTableEntries);   
 
     // fix duplicate hash table entries
     int cleanBlockSize = 32;
@@ -497,7 +471,7 @@ void filter_(float *im, float *ref, int w, int h, bool accurate) {
     cleanHashTable<pd><<<cleanBlocks, cleanBlockSize>>>(2*n*(pd+1), matrix.device);
     CUT_CHECK_ERROR("clean failed\n");
 
-    gettimeofday(t+2, NULL);
+    gettimeofday(t+2, NULL);    
 
     // splat splits by color, so extend the y coordinate to our blocks to represent that
     blocks.y *= pd+1;
@@ -505,29 +479,29 @@ void filter_(float *im, float *ref, int w, int h, bool accurate) {
     //splat<pd, vd><<<blocks, blockSize>>>(w, h, values.device, matrix.device);
     CUT_CHECK_ERROR("splat failed\n");
 
-    gettimeofday(t+3, NULL);
+    gettimeofday(t+3, NULL);    
 
-
+    
     if (accurate) {
 	float *newValues;
 	allocateCudaMemory((void**)&(newValues), n*(pd+1)*(vd+1)*sizeof(float));
 	CUDA_SAFE_CALL(cudaMemset((void *)newValues, 0, n*(pd+1)*(vd+1)*sizeof(float)));
-
-	for (int color = 0; color <= pd; color++) {
+	
+	for (int color = 0; color <= pd; color++) {	
 	    blur<pd, vd><<<cleanBlocks, cleanBlockSize>>>(n*(pd+1), newValues, matrix.device, color);
 	    CUT_CHECK_ERROR("blur failed\n");
 	    newValues = swapHashTableValues(newValues);
 	}
     }
+    
 
-
-    gettimeofday(t+4, NULL);
-
+    gettimeofday(t+4, NULL);    
+    
     blocks.y /= (pd+1);
     slice<pd, vd><<<blocks, blockSize>>>(w, h, values.device, matrix.device);
-    CUT_CHECK_ERROR("slice failed\n");
+    CUT_CHECK_ERROR("slice failed\n");	
 
-    gettimeofday(t+5, NULL);
+    gettimeofday(t+5, NULL);    
 
     double total = (t[5].tv_sec - t[0].tv_sec)*1000.0 + (t[5].tv_usec - t[0].tv_usec)/1000.0;
     printf("Total time: %3.3f ms\n", total);
@@ -603,8 +577,8 @@ void filter(float *im, float *ref, int pd, int vd, int w, int h, bool accurate) 
     case 2016: filter_<2, 16>(im, ref, w, h, accurate); break;
     case 3016: filter_<3, 16>(im, ref, w, h, accurate); break;
     default:
-	printf("Unsupported channel counts. Reference image must have 1 to 16 channels, input image must have 1 to 3 channels\n");
-    }
+	printf("Unsupported channel counts. Reference image must have 1 to 16 channels, input image must have 1 to 3 channels\n");	    
+    }    
 }
 
 
@@ -654,8 +628,8 @@ int main(int argc, char **argv) {
     filter(im, ref, refHeader.channels, imHeader.channels, imHeader.width, imHeader.height, accurate);
 
     saveTMP(argv[3], im, imHeader);
-
-    return 0;
+    
+    return 0;    
 }
 
 #endif

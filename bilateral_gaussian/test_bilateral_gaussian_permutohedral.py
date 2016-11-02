@@ -7,7 +7,7 @@ blur_module = tf.load_op_library('/home/jzuern/tf_installation/tensorflow/tensor
 
 
 # read input image
-image = mpimg.imread('input.png')
+image = mpimg.imread('input_orig.png')
 
 # spatial standard deviation:
 stdv_spat = 5.0
@@ -19,16 +19,23 @@ stdv_col = 1.0
 image_tensor = tf.convert_to_tensor(image, dtype=tf.float32)
 random_tensor = tf.random_normal([50,50,3], mean=0.5, stddev=0.3, dtype=tf.float32)
 
+print "image_tensor is type",type(image_tensor)
+print "random_tensor is type",type(random_tensor)
+
+print (image_tensor)
+print (random_tensor)
+
 # show input image
 with tf.Session(''):
-    plt.imshow(random_tensor.eval())
+    plt.imshow(random_tensor.eval()) #show white noise pic
+    plt.imshow(image_tensor.eval())  #show dog pic
     plt.show()
 
 
 
 with tf.Session(''):
-  blurred  = blur_module.bilateral_gaussian_permutohedral(random_tensor, stdv_spat, stdv_col).eval()
-  blurred_grad = blur_module.bilateral_gaussian_permutohedral_grad(random_tensor, stdv_spat, stdv_col).eval()
+  blurred  = blur_module.bilateral_gaussian_permutohedral(image_tensor, stdv_spat, stdv_col).eval()
+  blurred_grad = blur_module.bilateral_gaussian_permutohedral_grad(image_tensor, stdv_spat, stdv_col).eval()
 
 
 

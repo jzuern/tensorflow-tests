@@ -3,7 +3,7 @@
 //#define USE_ADDITIVE_HASH
 
 // turn this on if you want to get slighly less memory consumption and slightly longer run times.
-//#define LINEAR_D_MEMORY
+//#define LINEAR_D_MEMORY 
 
 #define USE_CUSTOM_MODULO
 
@@ -21,13 +21,9 @@ __device__ __constant__ char *table_rank;
 /*************************************************************/
 /* Fast computation of modulo operator with constant divisor */
 /*************************************************************/
-__device__ __constant__ unsigned int __div_m;  // issue
-__device__ __constant__ unsigned int __div_l;  // issue
-__device__ __constant__ unsigned int __div_c;  // issue
-
-
-__device__ __constant__ float coeffs;
-
+__device__ __constant__ unsigned int __div_m;
+__device__ __constant__ unsigned int __div_l;
+__device__ __constant__ unsigned int __div_c;
 
 #ifdef USE_CUSTOM_MODULO
 __device__ inline unsigned int modHash(unsigned int n) {
@@ -43,7 +39,7 @@ __device__ inline unsigned int modHash(unsigned int n) {
 /* End modulo                                                */
 /*************************************************************/
 
-__device__ __constant__ unsigned int hOffset[64]; // issue
+__device__ __constant__ unsigned int hOffset[64];
 
 template<int kd, int vd>
 void createHashTable(int capacity) {
@@ -51,19 +47,19 @@ void createHashTable(int capacity) {
     CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_capacity,
 				      &capacity,
 				      sizeof(unsigned int)));
-
+        
     float *values;
     allocateCudaMemory((void**)&values, capacity*vd*sizeof(float));
     CUDA_SAFE_CALL(cudaMemset((void *)values, 0, capacity*vd*sizeof(float)));
     CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_values,
 				      &values,
-				      sizeof(float *)));
-
+				      sizeof(float *)));       
+    
 
     int *entries;
     allocateCudaMemory((void **)&entries, capacity*2*sizeof(int));
     CUDA_SAFE_CALL(cudaMemset((void *)entries, -1, capacity*2*sizeof(int)));
-    CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_entries,
+    CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_entries, 
 				      &entries,
 				      sizeof(unsigned int *)));
 
@@ -105,19 +101,19 @@ static void destroyHashTable() {
 }
 
 template<int kd> __device__ __host__ static unsigned int hash(signed short *key) {
-    unsigned int k = 0;
+    unsigned int k = 0; 
     for (int i = 0; i < kd; i++) {
 	k += key[i];
-	k = k * 2531011;
+	k = k * 2531011; 
     }
     return k;
 }
 
 template<int kd> __device__ __host__ static unsigned int hash(int *key) {
-    unsigned int k = 0;
+    unsigned int k = 0; 
     for (int i = 0; i < kd; i++) {
 	k += key[i];
-	k = k * 2531011;
+	k = k * 2531011; 
     }
     return k;
 }
@@ -156,7 +152,7 @@ static float* swapHashTableValues(float *newValues) {
 
 
 template<int kd>
-__device__ static int hashTableInsert(unsigned int fh, signed short *key, unsigned int slot) {
+__device__ static int hashTableInsert(unsigned int fh, signed short *key, unsigned int slot) {	
     int h = modHash(fh);
     while (1) {
 	int *e = &table_entries[h];
@@ -167,7 +163,7 @@ __device__ static int hashTableInsert(unsigned int fh, signed short *key, unsign
 	if (contents == -2) {
 	    // If it was locked already, move on to the next cell
 
-	} else if (contents == -1) {
+	} else if (contents == -1) { 
 	    // If it was empty, we successfully locked it. Write our key.
 
 	    #ifndef LINEAR_D_MEMORY
@@ -177,7 +173,7 @@ __device__ static int hashTableInsert(unsigned int fh, signed short *key, unsign
 	    #endif
 
 	    // Unlock
-	    atomicExch(e, slot);
+	    atomicExch(e, slot); 
 
 	    return h;
 	} else {
@@ -190,7 +186,7 @@ __device__ static int hashTableInsert(unsigned int fh, signed short *key, unsign
 		match = (table_keys[contents*kd+i] == key[i]);
 	    }
 	    if (match) return h;
-            #endif
+            #endif       
 
 	}
 	// increment the bucket with wraparound
@@ -212,9 +208,9 @@ int hashTableRetrieveWithHash(unsigned int fh, signed short *key) {
   int h = modHash(fh);
   while (1) {
     int *e = table_entries + h;
-
+    
     if (*e == -1) return -1;
-
+    
     #ifdef LINEAR_D_MEMORY
     if (matchKey<kd>((*e), key)) return *e;
     #else
@@ -224,12 +220,12 @@ int hashTableRetrieveWithHash(unsigned int fh, signed short *key) {
     }
     if (match) return *e;
     #endif
-
+    
     h++;
     if (h == table_capacity*2) h = 0;
   }
 }
-
+   
 template<int kd>
 __device__ static int hashTableRetrieve(signed short *key) {
 
@@ -253,3 +249,11 @@ __device__ static int hashTableRetrieve(signed short *key) {
 	if (h == table_capacity*2) h = 0;
     }
 }
+
+
+
+
+
+
+
+
