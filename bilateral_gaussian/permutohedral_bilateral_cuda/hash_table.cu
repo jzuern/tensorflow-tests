@@ -25,8 +25,8 @@ __device__ __constant__ unsigned int __div_m;  // issue
 __device__ __constant__ unsigned int __div_l;  // issue
 __device__ __constant__ unsigned int __div_c;  // issue
 
+__device__ __constant__ float d_params; // jzuern test
 
-__device__ __constant__ float coeffs;
 
 
 #ifdef USE_CUSTOM_MODULO

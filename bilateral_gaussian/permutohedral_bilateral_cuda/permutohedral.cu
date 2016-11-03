@@ -49,6 +49,8 @@ struct MatrixEntry {
     float weight;
 };
 
+
+
 template<int pd>
 __global__ static void createMatrix(const int w, const int h,
 				    const float *positions,
@@ -436,13 +438,23 @@ void filter_(float *im, float *ref, int w, int h, bool accurate) {
 
 
 
-    CUDA_SAFE_CALL(cudaMemcpyToSymbol((char*)&__div_c, &__host_div_c, sizeof(unsigned int))); // runtime error. why?
-    CUDA_SAFE_CALL(cudaMemcpyToSymbol((char*)&__div_l, &__host_div_l, sizeof(unsigned int))); // runtime error. why?
-    CUDA_SAFE_CALL(cudaMemcpyToSymbol((char*)&__div_m, &__host_div_m, sizeof(unsigned int))); // runtime error. why?
+    // CUDA_SAFE_CALL(cudaMemcpyToSymbol((char*)&__div_c, &__host_div_c, sizeof(unsigned int))); // runtime error. why?
+    // CUDA_SAFE_CALL(cudaMemcpyToSymbol((char*)&__div_l, &__host_div_l, sizeof(unsigned int))); // runtime error. why?
+    // CUDA_SAFE_CALL(cudaMemcpyToSymbol((char*)&__div_m, &__host_div_m, sizeof(unsigned int))); // runtime error. why?
+
+    CUDA_SAFE_CALL(cudaMemcpyToSymbol(__div_m, &__host_div_m, sizeof(unsigned int)));
+    CUDA_SAFE_CALL(cudaMemcpyToSymbol(__div_l, &__host_div_l, sizeof(unsigned int)));
+    CUDA_SAFE_CALL(cudaMemcpyToSymbol(__div_c, &__host_div_c, sizeof(unsigned int)));
 
 
 
     // ------------------------------------------------------------------------------------
+
+
+
+    // float h_params = 1.0;
+    // cudaMemcpyToSymbol ( d_params, &h_params, sizeof(float) );
+
 
     // CUDA_SAFE_CALL(cudaMemcpyToSymbol(__div_c, __host_div_c, sizeof(unsigned int))); // runtime error. why?
 
@@ -467,7 +479,8 @@ void filter_(float *im, float *ref, int w, int h, bool accurate) {
     for (int i = 0; i <= pd; i++) {
       offset[i] -= pd+1; hOffset_host[i] = hash<pd>(offset); offset[i] += pd+1;
     }
-    CUDA_SAFE_CALL(cudaMemcpyToSymbol((char*)&hOffset, &hOffset_host, sizeof(unsigned int)*(pd+1))); // runtime error. why?
+    // CUDA_SAFE_CALL(cudaMemcpyToSymbol((char*)&hOffset, &hOffset_host, sizeof(unsigned int)*(pd+1))); // runtime error. why?
+    CUDA_SAFE_CALL(cudaMemcpyToSymbol(hOffset, &hOffset_host, sizeof(unsigned int)*(pd+1))); // jzuern
 
     dim3 blocks((w-1)/8+1, (h-1)/8+1, 1);
     dim3 blockSize(8, 8, 1);
