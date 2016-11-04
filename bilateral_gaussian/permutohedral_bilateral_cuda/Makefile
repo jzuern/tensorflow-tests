@@ -8,8 +8,8 @@ bilateral: Image.cpp Image.h bilateral.cpp jpg_file.h png_file.h macros.h permut
 	$(NVCC) -arch=sm_20 bilateral.cpp Image.cpp permutohedral.o -o bilateral  -lpng -ljpeg -L. -lcutil
 
 permutohedral.o: permutohedral.cu hash_table.cu
-	$(NVCC) -arch=sm_20 -O3 -use_fast_math -DLIBRARY -c permutohedral.cu -o permutohedral.o
-	# $(NVCC) -arch=sm_20 -DLIBRARY -c permutohedral.cu -o permutohedral.o
+	# $(NVCC) -arch=sm_20 -O3 -use_fast_math -DLIBRARY -c permutohedral.cu -o permutohedral.o
+	$(NVCC) -arch=sm_20 -use_fast_math -DLIBRARY -c permutohedral.cu -o permutohedral.o
 
 clean:
 	rm bilateral permutohedral.o
