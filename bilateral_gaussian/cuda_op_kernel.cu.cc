@@ -16,8 +16,7 @@ limitations under the License.
 
 __global__ void AddOneKernel(const int* in, const int N, int* out) {
 
-  printf("hello from kernel thread %i", threadIdx.x);
-
+  printf("Hello from Block %i, thread %i ",blockIdx.x,blockIdx.x);
 
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < N;
        i += blockDim.x * gridDim.x) {
@@ -26,7 +25,7 @@ __global__ void AddOneKernel(const int* in, const int N, int* out) {
 }
 
 void AddOneKernelLauncher(const int* in, const int N, int* out) {
-  AddOneKernel<<<32, 256>>>(in, N, out);
+  AddOneKernel<<<32, 2>>>(in, N, out);
 }
 
 #endif

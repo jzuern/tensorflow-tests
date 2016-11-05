@@ -1,4 +1,9 @@
+# Environment Setup
 
+Vor TF-Skript Aufruf ausführen:
+
+export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/local/cuda/lib64"
+export CUDA_HOME=/usr/local/cuda
 
 
 # TO Do
@@ -13,16 +18,16 @@ Ideen:
 - Update tensorflow to v0.11, 
 - use Valgrind to check for memory leaks etc., 
 - types nochmal checken
-- ...?
 
-## DA Implementierung von bilateral
+## CUDA Implementierung von bilateral
 
-0. kompiliere CUDA Implementierung ohne Fehler
-1. Implementierung nachvollziehen
-2. Implementierung als KERNEL konvertieren
-
-## gitlab Account zugriff wie?
+- Implementierung nachvollziehen... done
+- Implementierung als CustomOp Kernel ...done
 
 
+Weiter:
+- Ersetzen von Inhalt in cuda_op_kernel.cc /.cu.cc mit bilateral Zeug
 
 
+Erkenntnis: 
+- Kann alles mit bazel kompilieren
