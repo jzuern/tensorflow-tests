@@ -52,8 +52,8 @@ int main(int argc, char **argv) {
     }
 
     // Filter the input with respect to the position vectors.
-    //void filter(float *im, float *ref, int pd, int vd, int w, int h, bool accurate) {
     printf("Calling filter...\n");
+    //Implementation: void filter(float *im, float *ref, int pd, int vd, int w, int h, bool accurate) {
     filter(input(0, 0), positions, 5, 3, input.width, input.height, true);
     printf("Saving output...\n");
 

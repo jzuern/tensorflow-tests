@@ -19,8 +19,6 @@ stdv_col = 1.0
 image_tensor = tf.convert_to_tensor(image, dtype=tf.float32)
 random_tensor = tf.random_normal([50,50,3], mean=0.5, stddev=0.3, dtype=tf.float32)
 
-print "image_tensor is type",type(image_tensor)
-print "random_tensor is type",type(random_tensor)
 
 print (image_tensor)
 print (random_tensor)

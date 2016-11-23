@@ -1,0 +1,4 @@
+
+- nur ganze und halbe Stunden angeben
+- die Beschreibung (Freitext) frei lassen
+
