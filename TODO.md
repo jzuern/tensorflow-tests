@@ -8,7 +8,7 @@
 
 - MirroredArray struct nicht mehr verwenden (erspart hin-und Her kopieren der Tensor Einträge)
 - Bug der Bildgröße-> Segfault finden
-- Ole Code in gitlab repository Link schicken und gitlab aufräumen
+- Ole Code in gitlab repository Link schicken
 
 
 

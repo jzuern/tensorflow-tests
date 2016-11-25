@@ -40,31 +40,19 @@ class BilateralGaussianPermutohedralCudaOp : public OpKernel {
                 errors::InvalidArgument("image must be 3-D, but got shape ",
                                         image.shape().DebugString()));
 
-    printf("Test 0\n\n\n");
-
     // allocate output tensor
     Tensor* output_tensor = NULL;
     OP_REQUIRES_OK(context, context->allocate_output(0, image.shape(), &output_tensor));
 
 
-    printf("Test 1\n\n\n");
-
     // convert input and output image to EIGEN::TensorMap<Eigen::Tensor<...>>
-
     auto input  = image.tensor<float,3>();
-    // auto output = output_tensor->template tensor<float,3>(); // or this one?
-    auto output = output_tensor->tensor<float,3>(); // this one?
+    auto output = output_tensor->tensor<float,3>();
 
-    // eigen3tensorconst    input_eigen = image.tensor<float,3>(); // old
-    // eigen3tensor         out_eigen   = output_tensor->tensor<float,3>(); // old
-
-    printf("Test 2\n\n\n");
 
     // convert parameters to floats
     auto spat = stddev_spat.flat<float>();
     auto col  = stddev_col.flat<float>();
-
-    printf("Test 3\n\n\n");
 
     const int height = input.dimension(0);
     const int width = input.dimension(1);

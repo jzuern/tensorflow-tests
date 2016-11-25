@@ -11,6 +11,5 @@ tf_custom_op_library(
     hdrs = ["cutil.h",
             "cuda_memory.h",
             "hash_table.cu",
-            "MirroredArray.h",
             ],
 )
