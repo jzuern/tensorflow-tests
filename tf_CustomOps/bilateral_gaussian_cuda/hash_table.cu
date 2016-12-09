@@ -181,15 +181,15 @@ __device__ static int hashTableInsert(unsigned int fh, signed short *key, unsign
             #else
 	    bool match = true;
 	    for (int i = 0; i < kd && match; i++) {
-		match = (table_keys[contents*kd+i] == key[i]);
+		      match = (table_keys[contents*kd+i] == key[i]);
 	    }
 	    if (match) return h;
             #endif
 
-	}
+	  }
 	// increment the bucket with wraparound
-	h++;
-	if (h == table_capacity*2) h = 0;
+	   h++;
+	   if (h == table_capacity*2) h = 0;
     }
 }
 
@@ -229,21 +229,21 @@ __device__ static int hashTableRetrieve(signed short *key) {
 
     int h = modHash(hash<kd>(key));
     while (1) {
-	int *e = table_entries + h;
+	     int *e = table_entries + h;
 
-	if (*e == -1) return -1;
+	      if (*e == -1) return -1;
 
-	#ifdef LINEAR_D_MEMORY
-	if (matchKey<kd>((*e), key)) return *e;
-	#else
-	bool match = true;
-	for (int i = 0; i < kd && match; i++) {
-	    match = (table_keys[(*e)*kd+i] == key[i]);
-	}
-	if (match) return *e;
-	#endif
+      	#ifdef LINEAR_D_MEMORY
+      	if (matchKey<kd>((*e), key)) return *e;
+      	#else
+      	bool match = true;
+      	for (int i = 0; i < kd && match; i++) {
+      	    match = (table_keys[(*e)*kd+i] == key[i]);
+      	}
+      	if (match) return *e;
+      	#endif
 
-	h++;
-	if (h == table_capacity*2) h = 0;
+      	h++;
+	      if (h == table_capacity*2) h = 0;
     }
 }

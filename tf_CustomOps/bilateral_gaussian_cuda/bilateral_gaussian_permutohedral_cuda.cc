@@ -19,7 +19,7 @@ Performs a bilateral gaussian blur using a permutohedral lattice
 )doc");
 
 
-void filter(const float *input, float *output, int pd, int vd, int w, int h, int nChannels, const float * spat_f, const float * col_f, bool accurate); // forward declaration of filter function
+void filter(const float *input, float *output, int pd, int vd, int w, int h, int nChannels, const float * spat_f, const float * col_f, bool accurate, float * test); // forward declaration of filter function
 
 class BilateralGaussianPermutohedralCudaOp : public OpKernel {
  public:
@@ -49,6 +49,16 @@ class BilateralGaussianPermutohedralCudaOp : public OpKernel {
     auto input  = image.tensor<float,3>();
     auto output = output_tensor->tensor<float,3>();
 
+    // allocate filter tensor:
+    TensorShape test_shape({5000, 5000, 5});
+    Tensor test_tensor;
+    OP_REQUIRES_OK(context, context->allocate_temp(DataTypeToEnum<float>::value,
+                                                       test_shape, &test_tensor));
+
+    auto test = test_tensor.tensor<float,3>();
+    int test_size = 5000*5000*5; // number of entries in tensor
+
+
 
     // convert parameters to floats
     auto spat = stddev_spat.flat<float>();
@@ -62,7 +72,7 @@ class BilateralGaussianPermutohedralCudaOp : public OpKernel {
 
 
     printf("Calling filter...\n");
-    filter(input.data(), output.data(), 5, 3, width, height, nChannels, spat.data() ,col.data(), accurate);
+    filter(input.data(), output.data(), 5, 3, width, height, nChannels, spat.data() ,col.data(), accurate, test.data());
 
   }
 };

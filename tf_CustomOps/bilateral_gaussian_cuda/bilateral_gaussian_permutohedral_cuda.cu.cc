@@ -12,10 +12,8 @@
 #include <stdio.h>
 #include "cuda_memory.h"
 #include <sys/time.h>
-// #include "MirroredArray.h"
 #include "hash_table.cu"
 #include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
-
 
 
 
@@ -267,9 +265,8 @@ __global__ static void splatCache(const int w, const int h, float *values, Matri
 
 template<int pd, int vd>
 __global__ static void blur(int n, float *newValues, MatrixEntry *matrix, int color) {
-    const int idx = (blockIdx.y * gridDim.x + blockIdx.x) * blockDim.x * blockDim.y + threadIdx.x;
 
-    // printf("Hello from Block %i, thread %i ",blockIdx.x,threadIdx.x);
+    const int idx = (blockIdx.y * gridDim.x + blockIdx.x) * blockDim.x * blockDim.y + threadIdx.x;
 
     if (idx >= n) return;
 
@@ -367,14 +364,6 @@ __global__ static void slice(const int w, const int h, float *values, MatrixEntr
 }
 
 
-// __global__ static void testKernel(const float* input){
-//   int N = 10;
-//   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < N; i += blockDim.x * gridDim.x) {
-//     printf("input[i] == %f\n", input[i] ); // works just fine
-//   }
-// }
-
-
 // assign scalar floats
 __global__ void assignParams(const float * spat_f, const float * col_f, float * spat_d, float * col_d) {
   spat_d[0] = spat_f[0];
@@ -412,21 +401,35 @@ __global__ static void writeOutputKernel(float* inp_h, int n, float * output ) {
   }
 } // void writeOutputKernel
 
+__global__ static void testKernel(float * test){
+
+  test[0] = 3.32;
+  // printf("test[0] = %f\n", test[0]);
+}
+
 
 
 template<int vd, int pd>
-void filter_(const float *input, float *output, int w, int h, int nChannels,const float * spat_f,const float * col_f, bool accurate) {
+void filter_(const float *input, float *output, int w, int h, int nChannels,const float * spat_f,const float * col_f, bool accurate, float * test) {
 
     printf("hello from void filter_(...)\n");
 
-    /*
-    Ideen:
-       Unified memory verwenden ? https://devblogs.nvidia.com/parallelforall/unified-memory-in-cuda-6/
-    */
 
     size_t mem_tot_0,mem_free_0;
     cudaMemGetInfo  (&mem_free_0, & mem_tot_0);
-    printf("Free memory : %i, Total memory : %i\n",mem_free_0, mem_tot_0);
+    printf("1 Free memory : %lu, Total memory : %lu\n",mem_free_0, mem_tot_0);
+
+    testKernel<<<1,1>>>(test);
+
+    /* variables significant to memory usage:
+    ref
+    values
+    matrix
+    col_d,spat_d
+
+
+    */
+
 
     float col[1],spat[1];
     float *col_d,*spat_d;
@@ -438,8 +441,6 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
     cudaMemcpy(col, col_d, sizeof(float), cudaMemcpyDeviceToHost);
     cudaMemcpy(spat, spat_d, sizeof(float), cudaMemcpyDeviceToHost);
 
-    printf("col = %f\n" ,col[0]);
-    printf("spat = %f\n\n" ,spat[0]);
 
     float invColorStdev = 1.0 / col[0];
     float invSpatialStdev = 1.0 / spat[0];
@@ -451,6 +452,8 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
     cudaMalloc(&ref, n*pd * sizeof(float));
     makeRefKernel<<<1,1>>>(input, w, h, invSpatialStdev , invColorStdev, ref);
 
+
+
     float blurVariance = accurate ? 0.5 : 0;
 
     float scaleFactor_h[pd];
@@ -461,6 +464,7 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
     cudaMalloc(&scaleFactor, pd * sizeof(float));
     cudaMemcpy(scaleFactor, scaleFactor_h, pd*sizeof(float), cudaMemcpyHostToDevice);
 
+    printf("1.5 Free memory : %lu, Total memory : %lu\n",mem_free_0, mem_tot_0);
 
 
     float * values;
@@ -475,7 +479,8 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
 
     createHashTable<pd, vd+1>(n*(pd+1));
 
-    printf("Test 01\n");
+    cudaMemGetInfo  (&mem_free_0, & mem_tot_0);
+    printf("2 Free memory : %lu, Total memory : %lu\n",mem_free_0, mem_tot_0);
 
 
 
@@ -490,8 +495,6 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
     CUDA_SAFE_CALL(cudaMemcpyToSymbol(__div_m, &__host_div_m, sizeof(unsigned int)));
     CUDA_SAFE_CALL(cudaMemcpyToSymbol(__div_l, &__host_div_l, sizeof(unsigned int)));
     CUDA_SAFE_CALL(cudaMemcpyToSymbol(__div_c, &__host_div_c, sizeof(unsigned int)));
-
-    printf("Test 02\n");
 
 
     // Populate constant memory with hash of offset vectors
@@ -510,7 +513,8 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
 
     timeval t[7];
 
-    printf("Test 03\n");
+    cudaMemGetInfo  (&mem_free_0, & mem_tot_0);
+    printf("3 Free memory : %lu, Total memory : %lu\n",mem_free_0, mem_tot_0);
 
 
     gettimeofday(t+0, NULL);
@@ -527,7 +531,9 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
 
     CUT_CHECK_ERROR("clean failed\n");
 
-    printf("Test 04\n");
+
+    cudaMemGetInfo  (&mem_free_0, & mem_tot_0);
+    printf("4 Free memory : %lu, Total memory :%lu\n",mem_free_0, mem_tot_0);
 
 
 
@@ -553,7 +559,8 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
 	    }
     }
 
-    printf("Test 05\n");
+    cudaMemGetInfo  (&mem_free_0, & mem_tot_0);
+    printf("5 Free memory : %lu, Total memory : %lu\n",mem_free_0, mem_tot_0);
 
 
 
@@ -580,14 +587,25 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
     }
     printf("Total GPU memory usage: %u bytes\n", (unsigned int)GPU_MEMORY_ALLOCATION);
 
-    cudaMemGetInfo  (&mem_free_0, & mem_tot_0);
-    printf("GPU free memory : %i, Total memory : %i\n",mem_free_0, mem_tot_0);
 
+    cudaMemGetInfo  (&mem_free_0, & mem_tot_0);
+    printf("6 Free memory : %lu, Total memory : %lu\n",mem_free_0, mem_tot_0);
+
+    printf("cleaning up CUDA memory\n" );
 
     destroyHashTable();
 
     // copy input_h values from values to output
     writeOutputKernel<<<1,1>>>(values, vd*n, output);
+
+    cudaFree(values);
+    cudaFree(matrix);
+    cudaFree(ref);
+
+
+
+    cudaMemGetInfo  (&mem_free_0, & mem_tot_0);
+    printf("---GPU free memory : %lu, Total memory : %lu\n",mem_free_0, mem_tot_0);
 
 }
 
@@ -599,57 +617,57 @@ __declspec(dllexport)
 #endif
 
 
-void filter(const float *input, float *output, int pd, int vd, int w, int h, int nChannels,const float * spat_f,const  float * col_f, bool accurate) {
+void filter(const float *input, float *output, int pd, int vd, int w, int h, int nChannels,const float * spat_f,const  float * col_f, bool accurate, float * test) {
 
     switch (vd*1000 + pd) {
-    case 1001: filter_<1, 1>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 2001: filter_<2, 1>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 3001: filter_<3, 1>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 1002: filter_<1, 2>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 2002: filter_<2, 2>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 3002: filter_<3, 2>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 1003: filter_<1, 3>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 2003: filter_<2, 3>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 3003: filter_<3, 3>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 1004: filter_<1, 4>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 2004: filter_<2, 4>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 3004: filter_<3, 4>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 1005: filter_<1, 5>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 2005: filter_<2, 5>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 3005: filter_<3, 5>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 1006: filter_<1, 6>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 2006: filter_<2, 6>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 3006: filter_<3, 6>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 1007: filter_<1, 7>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 2007: filter_<2, 7>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 3007: filter_<3, 7>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 1008: filter_<1, 8>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 2008: filter_<2, 8>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 3008: filter_<3, 8>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 1009: filter_<1, 9>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 2009: filter_<2, 9>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 3009: filter_<3, 9>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 1010: filter_<1, 10>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 2010: filter_<2, 10>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 3010: filter_<3, 10>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 1011: filter_<1, 11>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 2011: filter_<2, 11>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 3011: filter_<3, 11>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 1012: filter_<1, 12>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 2012: filter_<2, 12>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 3012: filter_<3, 12>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 1013: filter_<1, 13>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 2013: filter_<2, 13>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 3013: filter_<3, 13>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 1014: filter_<1, 14>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 2014: filter_<2, 14>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 3014: filter_<3, 14>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 1015: filter_<1, 15>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 2015: filter_<2, 15>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 3015: filter_<3, 15>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 1016: filter_<1, 16>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 2016: filter_<2, 16>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
-    case 3016: filter_<3, 16>(input, output, w, h, nChannels, spat_f, col_f, accurate); break;
+    case 1001: filter_<1, 1>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 2001: filter_<2, 1>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 3001: filter_<3, 1>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 1002: filter_<1, 2>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 2002: filter_<2, 2>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 3002: filter_<3, 2>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 1003: filter_<1, 3>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 2003: filter_<2, 3>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 3003: filter_<3, 3>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 1004: filter_<1, 4>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 2004: filter_<2, 4>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 3004: filter_<3, 4>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 1005: filter_<1, 5>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 2005: filter_<2, 5>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 3005: filter_<3, 5>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 1006: filter_<1, 6>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 2006: filter_<2, 6>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 3006: filter_<3, 6>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 1007: filter_<1, 7>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 2007: filter_<2, 7>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 3007: filter_<3, 7>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 1008: filter_<1, 8>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 2008: filter_<2, 8>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 3008: filter_<3, 8>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 1009: filter_<1, 9>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 2009: filter_<2, 9>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 3009: filter_<3, 9>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 1010: filter_<1, 10>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 2010: filter_<2, 10>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 3010: filter_<3, 10>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 1011: filter_<1, 11>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 2011: filter_<2, 11>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 3011: filter_<3, 11>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 1012: filter_<1, 12>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 2012: filter_<2, 12>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 3012: filter_<3, 12>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 1013: filter_<1, 13>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 2013: filter_<2, 13>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 3013: filter_<3, 13>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 1014: filter_<1, 14>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 2014: filter_<2, 14>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 3014: filter_<3, 14>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 1015: filter_<1, 15>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 2015: filter_<2, 15>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 3015: filter_<3, 15>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 1016: filter_<1, 16>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 2016: filter_<2, 16>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 3016: filter_<3, 16>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
     default:
 	printf("Unsupported channel counts. Reference image must have 1 to 16 channels, input image must have 1 to 3 channels\n");
     }
