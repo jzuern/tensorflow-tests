@@ -60,42 +60,39 @@ __device__ inline unsigned int modHash(unsigned int n) {
 /* End modulo                                                */
 /*************************************************************/
 
-__device__ __constant__ unsigned int hOffset[64]; // issue
+__device__ __constant__ unsigned int hOffset[64];
 
 // allocate hash table pointers on global scope
-float *values;
-int *entries;
-signed short *keys;
-
-template<int kd, int vd>
-void createHashTable(int capacity) {
-
-    CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_capacity,
-				      &capacity,
-				      sizeof(unsigned int)));
 
 
-    CUDA_SAFE_CALL(cudaMalloc((void**)&values, capacity*vd*sizeof(float)));
-    CUDA_SAFE_CALL(cudaMemset((void *)values, 0, capacity*vd*sizeof(float)));
-    CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_values,
-				      &values,
-				      sizeof(float *)));
+template<int pd, int vd>
+void createHashTable(int capacity, float * values_table, int * entries_table, short * keys_table) {
+
+    // capacity =  nPixel*(pd+1) = nPixel*6
+    // vd = 3
+    // pd = 5
+
+    CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_capacity,&capacity,sizeof(unsigned int)));
 
 
-
-    CUDA_SAFE_CALL(cudaMalloc((void **)&entries, capacity*2*sizeof(int)));
-    CUDA_SAFE_CALL(cudaMemset((void *)entries, -1, capacity*2*sizeof(int)));
-    CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_entries,
-				      &entries,
-				      sizeof(unsigned int *)));
+    // CUDA_SAFE_CALL(cudaMalloc((void**)&values, capacity*vd*sizeof(float)));
+    // CUDA_SAFE_CALL(cudaMemset((void *)values, 0, capacity*vd*sizeof(float)));
+    // CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_values,  &values,sizeof(float *)));
+    CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_values,  &values_table,sizeof(float *)));
 
 
 
-    CUDA_SAFE_CALL(cudaMalloc((void **)&keys, capacity*kd*sizeof(signed short)));
-    CUDA_SAFE_CALL(cudaMemset((void *)keys, 0, capacity*kd*sizeof(signed short)));
-    CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_keys,
-				      &keys,
-				      sizeof(unsigned int *)));
+    // CUDA_SAFE_CALL(cudaMalloc((void **)&entries, capacity*2*sizeof(int)));
+    // CUDA_SAFE_CALL(cudaMemset((void *)entries, -1, capacity*2*sizeof(int)));
+    // CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_entries,  &entries,sizeof(unsigned int *)));
+    CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_entries,  &entries_table,sizeof(unsigned int *)));
+
+
+
+    // CUDA_SAFE_CALL(cudaMalloc((void **)&keys, capacity*pd*sizeof(signed short)));
+    // CUDA_SAFE_CALL(cudaMemset((void *)keys, 0, capacity*pd*sizeof(signed short)));
+    // CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_keys,  &keys, sizeof(unsigned int *)));
+    CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_keys,  &keys_table, sizeof(unsigned int *)));
 
 }
 
@@ -251,19 +248,13 @@ __device__ static int hashTableRetrieve(signed short *key) {
 
 
 
-struct MatrixEntry {
-    int index;
-    float weight;
-};
-
-
-
 template<int pd>
 __global__ static void createMatrix(const int w, const int h,
 				    const float *positions,
 				    const float *values,
 				    const float *scaleFactor,
-				    MatrixEntry *matrix) {
+            int * matrix_int,
+            float * matrix_float) {
 
 
     // 8x8 blocks
@@ -343,14 +334,6 @@ __global__ static void createMatrix(const int w, const int h,
 	      }
       }
 
-
-#ifdef LINEAR_D_MEMORY
-	    for (int i = 0; i <= pd; i++) {
-	      table_zeros[idx*(pd+1)+i] = myGreedy[i];
-	      table_rank[idx*(pd+1)+i] = myRank[i];
-	    }
-#endif
-
   	// turn delta into barycentric coords
   	for (int i = 0; i <= pd+1; i++) {
   	    myBarycentric[i] = 0;
@@ -384,20 +367,26 @@ __global__ static void createMatrix(const int w, const int h,
 #endif
 
   	if (!outOfBounds) {
-  	    MatrixEntry r;
+        int r_index; // new
+        float r_weight; // new
+
   	    #ifdef USE_ADDITIVE_HASH
-  	    r.index = hashTableInsert<pd>(cumulative_hash, myKey, idx*(pd+1)+color);
+        r_index = hashTableInsert<pd>(cumulative_hash, myKey, idx*(pd+1)+color); // new
   	    #else
-  	    r.index = hashTableInsert<pd>(myKey, idx*(pd+1)+color);
+        r_index = hashTableInsert<pd>(myKey, idx*(pd+1)+color); // new
   	    #endif
-  	    r.weight = myBarycentric[color];
-  	    matrix[idx*(pd+1) + color] = r;
+        r_weight = myBarycentric[color]; // new
+
+        matrix_int[idx*(pd+1) + color] = r_index; // new
+        matrix_float[idx*(pd+1) + color] = r_weight; // new
+
+
 	  }
   }
 }
 
 template<int kd>
-__global__ static void cleanHashTable(int n, MatrixEntry *matrix) {
+__global__ static void cleanHashTable(int n) {
     const int idx = (blockIdx.y * gridDim.x + blockIdx.x) * blockDim.x * blockDim.y + threadIdx.x;
 
     if (idx >= n) return;
@@ -414,21 +403,14 @@ __global__ static void cleanHashTable(int n, MatrixEntry *matrix) {
 	// be inserted twice. hashTableRetrieve always returns the
 	// earlier, so it's no problem as long as we rehash now.
 
-#ifdef LINEAR_D_MEMORY
-  // Get my key
-  short myKey[kd];
-  generateKey<kd>(*e, myKey);
-	*e = hashTableRetrieve<kd>(myKey);
-#else
 	*e = hashTableRetrieve<kd>(table_keys + *e*kd);
-#endif
     }
 }
 
 
 
 template<int pd, int vd>
-__global__ static void splatCache(const int w, const int h, float *values, MatrixEntry *matrix) {
+__global__ static void splatCache(const int w, const int h, float *values, int * matrix_int,  float * matrix_float) {
 
     const int x = threadIdx.x + blockIdx.x * blockDim.x;
     const int y = threadIdx.y + (blockIdx.y/(pd+1)) * blockDim.y;
@@ -447,17 +429,22 @@ __global__ static void splatCache(const int w, const int h, float *values, Matri
 
 	  float *value = values + idx*vd;
 
-	  MatrixEntry r = matrix[idx*(pd+1)+color];
+    int r_index    =  matrix_int[idx*(pd+1)+color]; // new
+    float r_weight =  matrix_float[idx*(pd+1)+color]; // new
 
 	  // convert the matrix entry from a pointer into the entries array to a pointer into the keys/values array
-	  matrix[idx*(pd+1)+color].index = r.index = table_entries[r.index];
+    matrix_int[idx*(pd+1)+color] = r_index = table_entries[r_index];// new
+
 	  // record the offset into the keys/values array in shared space
-	  myOffset = sharedOffsets[threadId] = r.index*(vd+1);
+    myOffset = sharedOffsets[threadId] = r_index*(vd+1); // new
+
 
 	  for (int j = 0; j < vd; j++) {
-	     myValue[j] = value[j]*r.weight;
+       myValue[j] = value[j]*r_weight; // new
+
 	  }
-	  myValue[vd] = r.weight;
+    myValue[vd] = r_weight; // new
+
     } else {
 	    sharedOffsets[threadId] = -1;
     }
@@ -492,14 +479,14 @@ __global__ static void splatCache(const int w, const int h, float *values, Matri
   }
 
 template<int pd, int vd>
-__global__ static void blur(int n, float *newValues, MatrixEntry *matrix, int color) {
+__global__ static void blur(int n, float *newValues,int color, int * matrix_int, float * matrix_float) {
 
     const int idx = (blockIdx.y * gridDim.x + blockIdx.x) * blockDim.x * blockDim.y + threadIdx.x;
 
     if (idx >= n) return;
 
     // Check if I'm valid
-    if (matrix[idx].index != idx) return;
+    if (matrix_int[idx] != idx) return; // new
 
 
     // find my key and the keys of my neighbours
@@ -507,19 +494,12 @@ __global__ static void blur(int n, float *newValues, MatrixEntry *matrix, int co
     short np[pd+1];
     short nm[pd+1];
 
-    #ifdef LINEAR_D_MEMORY
-    generateKey<pd>(idx, myKey);
-    for (int i = 0; i < pd; i++) {
-	    np[i] = myKey[i]+1;
-	    nm[i] = myKey[i]-1;
-    }
-    #else
     for (int i = 0; i < pd; i++) {
         myKey[i] = table_keys[idx*pd+i];
 	      np[i] = myKey[i]+1;
 	      nm[i] = myKey[i]-1;
     }
-    #endif
+
 
     np[color] -= pd+1;
     nm[color] += pd+1;
@@ -558,7 +538,7 @@ __global__ static void blur(int n, float *newValues, MatrixEntry *matrix, int co
   }
 
 template<int pd, int vd>
-__global__ static void slice(const int w, const int h, float *values, MatrixEntry *matrix) {
+__global__ static void slice(const int w, const int h, float *values, int * matrix_int, float * matrix_float) {
 
     const int x = threadIdx.x + blockIdx.x * blockDim.x;
     const int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -578,12 +558,17 @@ __global__ static void slice(const int w, const int h, float *values, MatrixEntr
     }
 
     for (int i = 0; i <= pd; i++) {
-	    MatrixEntry r = matrix[idx*(pd+1) + i];
-	    float *val = table_values + r.index*(vd+1);
+      int r_index = matrix_int[idx*(pd+1) + i]; // new
+      float r_weight = matrix_float[idx*(pd+1) + i];// new
+
+      float *val = table_values + r_index*(vd+1); // new
+
 	    for (int j = 0; j < vd; j++) {
-	      myValue[j] += r.weight*val[j];
+        myValue[j] += r_weight*val[j]; // new
+
 	    }
-	    myWeight += r.weight*val[vd];
+	    myWeight += r_weight*val[vd];// new
+
     }
 
     myWeight = 1.0f/myWeight;
@@ -623,7 +608,6 @@ __global__ static void fillScaleFactor(float* scaleFactor, float blurVariance, i
 } // void fillScaleFactor
 
 
-
 __global__ static void copyInputKernel(const float* input, int N, float * values ) {
 
   for (int i = 0; i < N; i++) {
@@ -638,19 +622,6 @@ __global__ static void writeOutputKernel(float* inp_h, int n, float * output ) {
   }
 } // void writeOutputKernel
 
-__global__ static void testKernel(float * tensor){
-
-  tensor[0] = 1.0;
-  printf("tensor[0] = %f\n", tensor[0]);
-}
-
-__global__ static void setZeroKernel(float* newValues, int N) {
-
-  for (int i = 0; i < N; i++) {
-        newValues[i] = 0.0;
-  }
-} // void setZeroKernel
-
 
 
 template<int vd, int pd>
@@ -659,34 +630,20 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
   float * values_out,
   float * newValues,
   float * scaleFactor,
-  float * table_test_ext,
-  float * persistent) {
+  float * values_table,
+    int * entries_table,
+  short * keys_table,
+  float * matrix_float,
+    int * matrix_int) {
 
     printf("hello from void filter_(...)\n");
-
-    // testKernel<<<1,1>>>(persistent); // why not working?
-    CUT_CHECK_ERROR("testKernel failed\n");
 
 
     size_t mem_tot_0, mem_free_0, mem_tot_1, mem_free_1;
 
 
-    cudaMemGetInfo  (&mem_free_0, & mem_tot_0);
-    printf("1 Free memory : %lu, Total memory : %lu\n",mem_free_0, mem_tot_0);
-
-
-    /* variables significant to memory usage:
-    ref                                      .. to implement
-    values_out                               .. to implement
-    newValues                                .. to implement
-    scaleFactor                              .. to implement
-
-    matrix                                   .. allocated with cudaMalloc
-    col_d,spat_d                             .. allocated with cudaMalloc
-    table_entries,table_values,table_keys:   .. allocated with cudaMalloc
-    hoffset                                  .. allocated with cudaMalloc
-    */
-
+    cudaMemGetInfo  (&mem_free_1, & mem_tot_1);
+    printf("1 Free memory : %lu, Total memory : %lu\n",mem_free_1, mem_tot_1);
 
 
     float col[1],spat[1];
@@ -707,48 +664,31 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
 
     int nPixel = w*h; // width x height
 
-    // float *ref; //ref array in device memory
-    // cudaMalloc(&ref, nPixel*pd * sizeof(float));
 
     fillRef<<<1,1>>>(input, w, h, invSpatialStdev , invColorStdev, ref);
     CUT_CHECK_ERROR("fillRef failed\n");
-
 
 
     float blurVariance = 0.5; // accurate setting
     fillScaleFactor<<<1,1>>>(scaleFactor,blurVariance,pd);
     CUT_CHECK_ERROR("scaleFactor failed\n");
 
-    // float scaleFactor_h[pd];
-    // float *scaleFactor;
-    // for (int i = 0; i < pd; i++) {
-    //   scaleFactor_h[i] = (pd+1)*sqrtf((1.0/6 + blurVariance)/((i+1)*(i+2)));
-    // }
-    // cudaMalloc(&scaleFactor, pd * sizeof(float));
-    // cudaMemcpy(scaleFactor, scaleFactor_h, pd*sizeof(float), cudaMemcpyHostToDevice);
-
-
-    printf("1.5 Free memory : %lu, Total memory : %lu\n",mem_free_0, mem_tot_0);
-
-
-    // float * values_out;
-    MatrixEntry * matrix;
-
-    // copy stuff to device
-    // cudaMalloc(&values_out, vd*nPixel*sizeof(float));
-    cudaMalloc(&matrix, nPixel*(pd+1)*sizeof(MatrixEntry));
-
     // Have to copy entries of "input" since it is declared const and we do not want that
     copyInputKernel<<<1,1>>>(input, vd*nPixel, values_out);
     CUT_CHECK_ERROR("copyInputKernel failed\n");
 
 
-    createHashTable<pd, vd+1>(nPixel*(pd+1));
+    CUDA_SAFE_CALL(cudaMemset((void *)values_table, 0, nPixel*(pd+1)*pd*sizeof(float))); // why is nPixel*(pd+1)*vd not big enough?
+    CUDA_SAFE_CALL(cudaMemset((void *)entries_table, -1, nPixel*(pd+1)*2*sizeof(int)));
+    CUDA_SAFE_CALL(cudaMemset((void *)keys_table, 0, nPixel*(pd+1)*pd*sizeof(signed short)));
+
+
+
+    createHashTable<pd, vd+1>(nPixel*(pd+1), values_table, entries_table, keys_table);
     CUT_CHECK_ERROR("createHashTable failed\n");
 
     cudaMemGetInfo  (&mem_free_0, & mem_tot_0);
     printf("2 Free memory : %lu, Total memory : %lu\n",mem_free_0, mem_tot_0);
-
 
 
 
@@ -785,10 +725,9 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
     cudaMemGetInfo  (&mem_free_0, & mem_tot_0);
     printf("3 Free memory : %lu, Total memory : %lu\n",mem_free_0, mem_tot_0);
 
-
     gettimeofday(t+0, NULL);
 
-    createMatrix<pd><<<blocks, blockSize>>>(w, h, ref,values_out,scaleFactor,matrix); // allocate stuff in "matrix"
+    createMatrix<pd><<<blocks, blockSize>>>(w, h, ref,values_out,scaleFactor, matrix_int, matrix_float);
     CUT_CHECK_ERROR("Matrix creation failed\n");
 
     gettimeofday(t+1, NULL);
@@ -796,8 +735,7 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
     // fix duplicate hash table entries
     int cleanBlockSize = 32;
     dim3 cleanBlocks((nPixel-1)/cleanBlockSize+1, 2*(pd+1), 1);
-    cleanHashTable<pd><<<cleanBlocks, cleanBlockSize>>>(2*nPixel*(pd+1), matrix);
-
+    cleanHashTable<pd><<<cleanBlocks, cleanBlockSize>>>(2*nPixel*(pd+1));
     CUT_CHECK_ERROR("clean failed\n");
 
 
@@ -805,23 +743,17 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
     printf("4 Free memory : %lu, Total memory :%lu\n",mem_free_0, mem_tot_0);
 
 
-
     gettimeofday(t+2, NULL);
 
     // splat splits by color, so extend the y coordinate to our blocks to represent that
     blocks.y *= pd+1;
-    splatCache<pd, vd><<<blocks, blockSize>>>(w, h, values_out, matrix);
-
+    splatCache<pd, vd><<<blocks, blockSize>>>(w, h, values_out, matrix_int, matrix_float);
     CUT_CHECK_ERROR("splat failed\n");
 
     gettimeofday(t+3, NULL);
 
-	  // float *newValues;
-	  // CUDA_SAFE_CALL(cudaMalloc((void**)&(newValues), nPixel*(pd+1)*(vd+1)*sizeof(float)));
-	  // CUDA_SAFE_CALL(cudaMemset((void *)newValues, 0, nPixel*(pd+1)*(vd+1)*sizeof(float)));
-
 	  for (int color = 0; color <= pd; color++) {
-	    blur<pd, vd><<<cleanBlocks, cleanBlockSize>>>(nPixel*(pd+1), newValues, matrix, color);
+	    blur<pd, vd><<<cleanBlocks, cleanBlockSize>>>(nPixel*(pd+1), newValues, color, matrix_int, matrix_float);
 	    CUT_CHECK_ERROR("blur failed\n");
 	    newValues = swapHashTableValues(newValues);
 	  }
@@ -835,7 +767,7 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
     gettimeofday(t+4, NULL);
 
     blocks.y /= (pd+1);
-    slice<pd, vd><<<blocks, blockSize>>>(w, h, values_out, matrix);
+    slice<pd, vd><<<blocks, blockSize>>>(w, h, values_out, matrix_int, matrix_float);
 
     CUT_CHECK_ERROR("slice failed\n");
 
@@ -861,32 +793,21 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
 
     // copy input_h values from values to output
     writeOutputKernel<<<1,1>>>(values_out, vd*nPixel, output);
-    CUT_CHECK_ERROR("writeOutputKernel up did not work");
+    CUT_CHECK_ERROR("writeOutputKernel did not work");
 
 
-    printf("cleaning up CUDAA memory\n" );
+    printf("cleaning up CUDA memory\n" );
 
     // free allocated memory
-    cudaFree(matrix);
     cudaFree(col_d);
     cudaFree(spat_d);
     // cudaFree(hOffset);// unfreed memory, but invalid device pointer error if not uncommented
-
-    // free hash table stuff
-    cudaFree(table_values);
-    cudaFree(table_entries);
-    cudaFree(table_keys);
-    cudaFree(values);
-    cudaFree(entries);
-    cudaFree(keys);
-
-
     CUT_CHECK_ERROR("cleaning up did not work");
 
 
 
-    cudaMemGetInfo (&mem_free_1, & mem_tot_1);
-    printf("GPU free memory : %lu, Total memory : %lu\n",mem_free_1, mem_tot_1);
+    cudaMemGetInfo (&mem_free_0, & mem_tot_0);
+    printf("GPU free memory : %lu, Total memory : %lu\n",mem_free_0, mem_tot_0);
 
     int diff = mem_free_0 - mem_free_1;
 
@@ -907,58 +828,61 @@ void filter(const float *input, float *output, int pd, int vd, int w, int h, int
   float * values_out,
   float * newValues,
   float * scaleFactor,
-  float * table_test,
-  float * pers) {
+  float * values_table,
+    int * entries_table,
+  short * keys_table,
+  float * matrix_float,
+    int * matrix_int) {
 
     switch (vd*1000 + pd) {
-    // case 1001: filter_<1, 1>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 2001: filter_<2, 1>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 3001: filter_<3, 1>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 1002: filter_<1, 2>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 2002: filter_<2, 2>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 3002: filter_<3, 2>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 1003: filter_<1, 3>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 2003: filter_<2, 3>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 3003: filter_<3, 3>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 1004: filter_<1, 4>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 2004: filter_<2, 4>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 3004: filter_<3, 4>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 1005: filter_<1, 5>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 2005: filter_<2, 5>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    case 3005: filter_<3, 5>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, table_test, pers); break;
-    // case 1006: filter_<1, 6>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 2006: filter_<2, 6>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 3006: filter_<3, 6>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 1007: filter_<1, 7>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 2007: filter_<2, 7>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 3007: filter_<3, 7>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 1008: filter_<1, 8>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 2008: filter_<2, 8>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 3008: filter_<3, 8>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 1009: filter_<1, 9>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 2009: filter_<2, 9>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 3009: filter_<3, 9>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 1010: filter_<1, 10>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 2010: filter_<2, 10>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 3010: filter_<3, 10>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 1011: filter_<1, 11>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 2011: filter_<2, 11>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 3011: filter_<3, 11>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 1012: filter_<1, 12>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 2012: filter_<2, 12>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 3012: filter_<3, 12>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 1013: filter_<1, 13>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 2013: filter_<2, 13>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 3013: filter_<3, 13>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 1014: filter_<1, 14>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 2014: filter_<2, 14>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 3014: filter_<3, 14>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 1015: filter_<1, 15>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 2015: filter_<2, 15>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 3015: filter_<3, 15>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 1016: filter_<1, 16>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 2016: filter_<2, 16>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
-    // case 3016: filter_<3, 16>(input, output, w, h, nChannels, spat_f, col_f, accurate, test); break;
+    case 1001: filter_<1, 1>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 2001: filter_<2, 1>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 3001: filter_<3, 1>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 1002: filter_<1, 2>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 2002: filter_<2, 2>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 3002: filter_<3, 2>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 1003: filter_<1, 3>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 2003: filter_<2, 3>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 3003: filter_<3, 3>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 1004: filter_<1, 4>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 2004: filter_<2, 4>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 3004: filter_<3, 4>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 1005: filter_<1, 5>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 2005: filter_<2, 5>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 3005: filter_<3, 5>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break; // this one
+    case 1006: filter_<1, 6>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 2006: filter_<2, 6>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 3006: filter_<3, 6>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 1007: filter_<1, 7>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 2007: filter_<2, 7>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 3007: filter_<3, 7>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 1008: filter_<1, 8>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 2008: filter_<2, 8>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 3008: filter_<3, 8>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 1009: filter_<1, 9>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 2009: filter_<2, 9>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 3009: filter_<3, 9>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 1010: filter_<1, 10>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 2010: filter_<2, 10>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 3010: filter_<3, 10>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 1011: filter_<1, 11>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 2011: filter_<2, 11>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 3011: filter_<3, 11>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 1012: filter_<1, 12>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 2012: filter_<2, 12>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 3012: filter_<3, 12>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 1013: filter_<1, 13>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 2013: filter_<2, 13>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 3013: filter_<3, 13>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 1014: filter_<1, 14>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 2014: filter_<2, 14>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 3014: filter_<3, 14>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 1015: filter_<1, 15>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 2015: filter_<2, 15>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 3015: filter_<3, 15>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 1016: filter_<1, 16>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 2016: filter_<2, 16>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 3016: filter_<3, 16>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
     default:
 	printf("Unsupported channel counts. Reference image must have 1 to 16 channels, input image must have 1 to 3 channels\n");
     }
