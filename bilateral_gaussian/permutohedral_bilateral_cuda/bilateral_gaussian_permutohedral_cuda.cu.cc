@@ -73,25 +73,8 @@ void createHashTable(int capacity, float * values_table, int * entries_table, sh
     // pd = 5
 
     CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_capacity,&capacity,sizeof(unsigned int)));
-
-
-    // CUDA_SAFE_CALL(cudaMalloc((void**)&values, capacity*vd*sizeof(float)));
-    // CUDA_SAFE_CALL(cudaMemset((void *)values, 0, capacity*vd*sizeof(float)));
-    // CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_values,  &values,sizeof(float *)));
     CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_values,  &values_table,sizeof(float *)));
-
-
-
-    // CUDA_SAFE_CALL(cudaMalloc((void **)&entries, capacity*2*sizeof(int)));
-    // CUDA_SAFE_CALL(cudaMemset((void *)entries, -1, capacity*2*sizeof(int)));
-    // CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_entries,  &entries,sizeof(unsigned int *)));
     CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_entries,  &entries_table,sizeof(unsigned int *)));
-
-
-
-    // CUDA_SAFE_CALL(cudaMalloc((void **)&keys, capacity*pd*sizeof(signed short)));
-    // CUDA_SAFE_CALL(cudaMemset((void *)keys, 0, capacity*pd*sizeof(signed short)));
-    // CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_keys,  &keys, sizeof(unsigned int *)));
     CUDA_SAFE_CALL(cudaMemcpyToSymbol(table_keys,  &keys_table, sizeof(unsigned int *)));
 
 }
@@ -608,19 +591,31 @@ __global__ static void fillScaleFactor(float* scaleFactor, float blurVariance, i
 } // void fillScaleFactor
 
 
-__global__ static void copyInputKernel(const float* input, int N, float * values ) {
+__global__ static void copyKernel(const float* source, int N, float * dest ) {
 
-  for (int i = 0; i < N; i++) {
-  	    values[i] = input[i];
+  int tid=threadIdx.x+blockIdx.x*blockDim.x;
+
+  if(tid<N){
+      dest[tid]=source[tid];
   }
-} // void copyInputKernel
+  // for (int i = 0; i < N; i++) {
+  // 	    dest[i] = source[i];
+  // }
+} // void copyKernel
 
-__global__ static void writeOutputKernel(float* inp_h, int n, float * output ) {
+__global__ static void copyKernel(float* source, int N, float * dest ) {
 
-  for (int c = 0; c < n; c++) {
-      output[c] = inp_h[c];
+  int tid=threadIdx.x+blockIdx.x*blockDim.x;
+
+  // for (int c = 0; c < n; c++) {
+  //     dest[c] = source[c];
+  // }
+
+  if(tid<N){
+      dest[tid]=source[tid];
   }
-} // void writeOutputKernel
+
+} // void copyKernel
 
 
 
@@ -674,7 +669,7 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
     CUT_CHECK_ERROR("scaleFactor failed\n");
 
     // Have to copy entries of "input" since it is declared const and we do not want that
-    copyInputKernel<<<1,1>>>(input, vd*nPixel, values_out);
+    copyKernel<<<(vd*nPixel)/1024+1, 1024>>>(input, vd*nPixel, values_out); // new
     CUT_CHECK_ERROR("copyInputKernel failed\n");
 
 
@@ -683,13 +678,8 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
     CUDA_SAFE_CALL(cudaMemset((void *)keys_table, 0, nPixel*(pd+1)*pd*sizeof(signed short)));
 
 
-
     createHashTable<pd, vd+1>(nPixel*(pd+1), values_table, entries_table, keys_table);
     CUT_CHECK_ERROR("createHashTable failed\n");
-
-    cudaMemGetInfo  (&mem_free_0, & mem_tot_0);
-    printf("2 Free memory : %lu, Total memory : %lu\n",mem_free_0, mem_tot_0);
-
 
 
     // Populate constant memory for hash helpers
@@ -722,8 +712,6 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
 
     timeval t[7];
 
-    cudaMemGetInfo  (&mem_free_0, & mem_tot_0);
-    printf("3 Free memory : %lu, Total memory : %lu\n",mem_free_0, mem_tot_0);
 
     gettimeofday(t+0, NULL);
 
@@ -738,9 +726,6 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
     cleanHashTable<pd><<<cleanBlocks, cleanBlockSize>>>(2*nPixel*(pd+1));
     CUT_CHECK_ERROR("clean failed\n");
 
-
-    cudaMemGetInfo  (&mem_free_0, & mem_tot_0);
-    printf("4 Free memory : %lu, Total memory :%lu\n",mem_free_0, mem_tot_0);
 
 
     gettimeofday(t+2, NULL);
@@ -757,10 +742,6 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
 	    CUT_CHECK_ERROR("blur failed\n");
 	    newValues = swapHashTableValues(newValues);
 	  }
-
-
-    cudaMemGetInfo  (&mem_free_0, & mem_tot_0);
-    printf("5 Free memory : %lu, Total memory : %lu\n",mem_free_0, mem_tot_0);
 
 
 
@@ -787,23 +768,17 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
     }
 
 
-    cudaMemGetInfo  (&mem_free_0, & mem_tot_0);
-    printf("6 Free memory : %lu, Total memory : %lu\n",mem_free_0, mem_tot_0);
-
-
     // copy input_h values from values to output
-    writeOutputKernel<<<1,1>>>(values_out, vd*nPixel, output);
+    copyKernel<<<(vd*nPixel)/1024+1, 1024>>>(values_out, vd*nPixel, output); // new
     CUT_CHECK_ERROR("writeOutputKernel did not work");
 
 
     printf("cleaning up CUDA memory\n" );
-
     // free allocated memory
     cudaFree(col_d);
     cudaFree(spat_d);
     // cudaFree(hOffset);// unfreed memory, but invalid device pointer error if not uncommented
     CUT_CHECK_ERROR("cleaning up did not work");
-
 
 
     cudaMemGetInfo (&mem_free_0, & mem_tot_0);

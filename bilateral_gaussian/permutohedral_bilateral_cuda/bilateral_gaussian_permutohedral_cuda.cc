@@ -5,6 +5,10 @@
 #include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/framework/tensor_shape.h"
 
+#include <sys/time.h> // for gettimeofday
+
+
+
 using namespace tensorflow;
 
 REGISTER_OP("BilateralGaussianPermutohedralCuda")
@@ -36,6 +40,9 @@ class BilateralGaussianPermutohedralCudaOp : public OpKernel {
   explicit BilateralGaussianPermutohedralCudaOp(OpKernelConstruction* context) : OpKernel(context) {
 
     // this is the constructor
+    last_image_width = 0;
+    last_image_height = 0;
+
   }
 
   void Compute(OpKernelContext* context) override {
@@ -74,6 +81,9 @@ class BilateralGaussianPermutohedralCudaOp : public OpKernel {
         last_image_height = input.dimension(1);
 
         // allocate_persistent stuff that is needed for each kernel call (stays in memory after Kernel Compute Method is executed, and only the specific values are updated with each frame)
+
+        timeval t2[2];
+        gettimeofday(t2+0, NULL);
 
         // allocate ref tensor:
         printf("allocating persistent ref tensor \n");
@@ -122,6 +132,9 @@ class BilateralGaussianPermutohedralCudaOp : public OpKernel {
         matrix_float_shape = {input.dimension(0), input.dimension(1), pd+1};
         OP_REQUIRES_OK(context, context->allocate_persistent(DT_FLOAT,matrix_float_shape, &matrix_float_tensor, nullptr));
 
+        gettimeofday(t2+1, NULL);
+    	  printf("allocating with allocate_persistent took %3.3f ms\n", (t2[1].tv_sec - t2[1-1].tv_sec)*1000.0 + (t2[1].tv_usec - t2[1-1].tv_usec)/1000.0);
+
 
 
 
@@ -133,7 +146,10 @@ class BilateralGaussianPermutohedralCudaOp : public OpKernel {
 
 
 
-    // get Tensors from allocate_persistent 
+    // get Tensors from allocate_persistent
+    timeval t1[2];
+    gettimeofday(t1+0, NULL);
+
     Tensor* ref_persistent = ref_tensor.AccessTensor(context);
     auto ref = ref_persistent->flat<float>();
 
@@ -160,6 +176,9 @@ class BilateralGaussianPermutohedralCudaOp : public OpKernel {
 
     Tensor* matrix_float_persistent = matrix_float_tensor.AccessTensor(context);
     auto matrix_float = matrix_float_persistent->flat<float>();
+
+    // gettimeofday(t1+1, NULL);
+	  // printf("%3.3f ms\n", (t1[1].tv_sec - t1[1-1].tv_sec)*1000.0 + (t1[1].tv_usec - t1[1-1].tv_usec)/1000.0);
 
 
     // convert parameters to floats

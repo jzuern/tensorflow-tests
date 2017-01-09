@@ -3,7 +3,7 @@
 
 cuda sdk: 	7.5
 cudnn: 		4.0.7
-tensorflow: 	1.0
+tensorflow: 	0.12
 python: 	2.7.12
 
 CUDA compute capability = 3.0 (-arch=sm_20)
@@ -14,10 +14,10 @@ GPU: GT 755M
 
 ## Paths
 
-tensorflow	/home/jzuern/tf_installation/tensorflow
-eigenv3         /home/jzuern/tf_installation/tensorflow/bazel-tensorflow/external/eigen_archive
-eigen_tensor	/home/jzuern/tf_installation/tensorflow/bazel-tensorflow/external/eigen_archive/unsupported/Eigen/CXX11/src/Tensor
-tensorflow_ops	/home/jzuern/tf_installation/tensorflow/bazel-tensorflow/tensorflow/core/kernels
+tensorflow	/home/jzuern/tensorflow
+eigenv3         /home/jzuern/tensorflow/bazel-tensorflow/external/eigen_archive
+eigen_tensor	/home/jzuern/tensorflow/bazel-tensorflow/external/eigen_archive/unsupported/Eigen/CXX11/src/Tensor
+tensorflow_ops	/home/jzuern/tensorflow/bazel-tensorflow/tensorflow/core/kernels
 cuda: 		/usr/local/cuda-7.5
 cudnn: 		/usr/local/cuda-7.5
 python: 	/usr/bin/python

@@ -6,10 +6,10 @@ print('-----Testing TensorFlow on a GPU device-----')
 
 # load shared object containing custom OpKernel
 
-bilateral_module = tf.load_op_library('/home/jzuern/tf_installation/tensorflow/bazel-bin/tensorflow/core/user_ops/bilateral_gaussian_cuda/bilateral_gaussian_permutohedral_cuda.so')
+bilateral_module = tf.load_op_library('/home/jzuern/tensorflow/bazel-bin/tensorflow/core/user_ops/bilateral_gaussian_cuda/bilateral_gaussian_permutohedral_cuda.so')
 
 # read input image
-image = mpimg.imread('input_orig.png')
+image = mpimg.imread('input_square_small.png')
 
 # spatial standard deviation:
 stdv_spat = 5.0
@@ -17,7 +17,7 @@ stdv_spat = 5.0
 # color standard deviation
 stdv_col = 1.0
 
-gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5)
+gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.9)
 gpu_options.allow_growth=True
 sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
 
@@ -30,7 +30,7 @@ random_tensor = tf.random_normal([512,512,3], mean=0.5, stddev=0.2, dtype=tf.flo
 
 # Creates a graph
 with tf.device('/gpu:0'):
-  bilateral  = bilateral_module.bilateral_gaussian_permutohedral_cuda(image_tensor,stdv_spat,stdv_col)
+  bilateral  = bilateral_module.bilateral_gaussian_permutohedral_cuda(random_tensor,stdv_spat,stdv_col)
 
 for i in range(0,10):
   print "i =",i
