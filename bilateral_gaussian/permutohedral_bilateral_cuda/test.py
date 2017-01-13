@@ -22,17 +22,20 @@ gpu_options.allow_growth=True
 sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
 
 # convert mpimg image to tensorflow tensor object
-image_tensor = tf.convert_to_tensor(image, dtype=tf.float32)
-random_tensor = tf.random_normal([512,512,3], mean=0.5, stddev=0.2, dtype=tf.float32)
+# im = tf.convert_to_tensor(image, dtype=tf.float32)
+im = tf.random_normal([512,512,64], mean=0.5, stddev=0.2, dtype=tf.float32)
+ref = tf.random_normal([512,512,3], mean=0.5, stddev=0.2, dtype=tf.float32)
+
+reverse = False # False if filter, True if gradient of filter
 
 # plt.imshow(image_tensor.eval(session=sess))  #show pic
 # plt.show()
 
 # Creates a graph
 with tf.device('/gpu:0'):
-  bilateral  = bilateral_module.bilateral_gaussian_permutohedral_cuda(random_tensor,stdv_spat,stdv_col)
+  bilateral  = bilateral_module.bilateral_gaussian_permutohedral_cuda(im,ref,stdv_spat,stdv_col, reverse)
 
-for i in range(0,10):
+for i in range(0,3):
   print "i =",i
   out = sess.run(bilateral) # Runs the op.
 

@@ -13,8 +13,10 @@ using namespace tensorflow;
 
 REGISTER_OP("BilateralGaussianPermutohedralCuda")
     .Input("image: T")
+    .Input("reference: T")
     .Input("stddev_spat: T")
     .Input("stddev_col: T")
+    .Input("reverse_tens: bool")
     .Output("blurred: T")
     .Attr("T: {float32, double}") // implementation for single precision and double precision
     .Doc(R"doc(
@@ -23,7 +25,7 @@ Performs a bilateral gaussian blur using a permutohedral lattice
 )doc");
 
 
-void filter(const float *input, float *output, int pd, int vd, int w, int h, int nChannels, const float * spat_f, const float * col_f,
+void filter(const float *input, const float * ref_image, float *output, int pd, int vd, int w, int h, int nChannels, const float * spat_f, const float * col_f,
   float * ref,
   float * values_out,
   float * newValues,
@@ -32,7 +34,8 @@ void filter(const float *input, float *output, int pd, int vd, int w, int h, int
     int * entries_table,
   short * keys_table,
   float * matrix_float,
-    int * matrix_int);
+    int * matrix_int,
+   const bool *  reverse);
 
 
 class BilateralGaussianPermutohedralCudaOp : public OpKernel {
@@ -52,26 +55,31 @@ class BilateralGaussianPermutohedralCudaOp : public OpKernel {
 
     // grab arguments
     const Tensor& image         = context->input(0);
-    const Tensor stddev_spat    = context->input(1);
-    const Tensor stddev_col     = context->input(2);
+    const Tensor& reference     = context->input(1);
+    const Tensor stddev_spat    = context->input(2);
+    const Tensor stddev_col     = context->input(3);
+    const Tensor reverse_tens   = context->input(4);
 
     // dimensionality checks
-    OP_REQUIRES(context, image.shape().dims() == 3,
-                errors::InvalidArgument("image must be 3-D, but got shape ",
-                                        image.shape().DebugString()));
+    // OP_REQUIRES(context, image.shape().dims() == 3,
+    //             errors::InvalidArgument("image must be 3-D, but got shape ", image.shape().DebugString()));
+
+
+    OP_REQUIRES(context, (image.shape().dim_size(0) == reference.shape().dim_size(0)) && (image.shape().dim_size(1) == reference.shape().dim_size(1)) ,
+                errors::InvalidArgument("image and reference must have same width and height"));
 
     // allocate output tensor
     Tensor* output_tensor = NULL;
     OP_REQUIRES_OK(context, context->allocate_output(0, image.shape(), &output_tensor));
 
 
-    auto input  = image.tensor<float,3>();
-    auto output = output_tensor->tensor<float,3>();
+    auto input        = image.tensor<float,3>();
+    auto ref_image    = reference.tensor<float,3>();
+    auto output       = output_tensor->tensor<float,3>();
 
-    int pd = input.dimension(2)+2;
-    int vd = input.dimension(2);
+    int pd = 5; // default: 5. In principle: pd = nChannels(ref) + 2
+    int vd = 64; // default: 3. In principle: vd = nChannels(im)
 
-    printf("pd = %i, vd = %i\n", pd,vd);
 
       if ((last_image_width == 0) ||  (last_image_width != input.dimension(0)) ){ // this is true if Compute method is called the very first time or image resolution changes
 
@@ -184,6 +192,7 @@ class BilateralGaussianPermutohedralCudaOp : public OpKernel {
     // convert parameters to floats
     auto spat = stddev_spat.flat<float>();
     auto col  = stddev_col.flat<float>();
+    auto reverse = reverse_tens.flat<bool>();
 
     const int height = input.dimension(0);
     const int width = input.dimension(1);
@@ -192,7 +201,7 @@ class BilateralGaussianPermutohedralCudaOp : public OpKernel {
 
 
     printf("Calling filter...\n");
-    filter(input.data(), output.data(), pd, vd, width, height, nChannels,
+    filter(input.data(), ref_image.data(), output.data(), pd, vd, width, height, nChannels,
     spat.data() ,
     col.data(),
     ref.data(),
@@ -203,7 +212,8 @@ class BilateralGaussianPermutohedralCudaOp : public OpKernel {
     entries_table.data(),
     keys_table.data(),
     matrix_float.data(),
-    matrix_int.data());
+    matrix_int.data(),
+    reverse.data());
   }
 
 

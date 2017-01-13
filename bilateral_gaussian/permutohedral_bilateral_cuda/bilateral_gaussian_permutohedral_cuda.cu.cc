@@ -462,7 +462,7 @@ __global__ static void splatCache(const int w, const int h, float *values, int *
   }
 
 template<int pd, int vd>
-__global__ static void blur(int n, float *newValues,int color, int * matrix_int, float * matrix_float) {
+__global__ static void blur(int n, float *newValues,int color, int * matrix_int, float * matrix_float, bool reverse) {
 
     const int idx = (blockIdx.y * gridDim.x + blockIdx.x) * blockDim.x * blockDim.y + threadIdx.x;
 
@@ -502,19 +502,24 @@ __global__ static void blur(int n, float *newValues,int color, int * matrix_int,
     float *valOut = newValues + (vd+1)*idx;
 
     if (offNp >= 0 && offNm >= 0) {
-	    for (int i = 0; i <= vd; i++) {
+	    // for (int i = 0; i <= vd; i++) { // old
+      for (int i = reverse?vd:0; i <= vd && i >= 0; reverse?i--:i++) { // new
+
 	      valOut[i] = (valNp[i] + (valMe[i]*2) + valNm[i])/4;
 	    }
     } else if (offNp >= 0) {
-	    for (int i = 0; i <= vd; i++) {
+	    // for (int i = 0; i <= vd; i++) {// old
+      for (int i = reverse?vd:0; i <= vd && i >= 0; reverse?i--:i++) { // new
 	      valOut[i] = (valNp[i] + (valMe[i]*2))/4;
 	    }
     } else if (offNm >= 0) {
-	    for (int i = 0; i <= vd; i++) {
+	    // for (int i = 0; i <= vd; i++) {// old
+      for (int i = reverse?vd:0; i <= vd && i >= 0; reverse?i--:i++) { // new
 	      valOut[i] = (valNm[i] + (valMe[i]*2))/4;
 	    }
     } else {
-	    for (int i = 0; i <= vd; i++) {
+	    // for (int i = 0; i <= vd; i++) {// old
+      for (int i = reverse?vd:0; i <= vd && i >= 0; reverse?i--:i++) { // new
 	      valOut[i] = valMe[i]*2;
 	    }
     }
@@ -522,6 +527,7 @@ __global__ static void blur(int n, float *newValues,int color, int * matrix_int,
 
 template<int pd, int vd>
 __global__ static void slice(const int w, const int h, float *values, int * matrix_int, float * matrix_float) {
+
 
     const int x = threadIdx.x + blockIdx.x * blockDim.x;
     const int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -560,13 +566,15 @@ __global__ static void slice(const int w, const int h, float *values, int * matr
 }
 
 
-// assign scalar floats
-__global__ void assignParams(const float * spat_f, const float * col_f, float * spat_d, float * col_d) {
+// assign scalars
+__global__ void assignParams(const float * spat_f, const float * col_f, const bool * reverse_f, float * spat_d, float * col_d, bool * reverse_d) {
   spat_d[0] = spat_f[0];
   col_d[0] = col_f[0];
+  reverse_d[0] = reverse_f[0];
+
 }
 
-__global__ static void fillRef(const float* input, int w, int h, float spat , float col, float * ref ) {
+__global__ static void fillRef(const float* ref_image, int w, int h, float spat , float col, float * ref ) {
 
   int i = 0;
   int j = 0;
@@ -575,9 +583,9 @@ __global__ static void fillRef(const float* input, int w, int h, float spat , fl
      for (int x = 0; x < w; x++) {
         ref[i++] = spat * x;
         ref[i++] = spat * y;
-  	    ref[i++] = col * input[j++];
-  	    ref[i++] = col * input[j++];
-  	    ref[i++] = col * input[j++];
+  	    ref[i++] = col * ref_image[j++];
+  	    ref[i++] = col * ref_image[j++];
+  	    ref[i++] = col * ref_image[j++];
        }
   }
 } // void fillRef
@@ -620,7 +628,7 @@ __global__ static void copyKernel(float* source, int N, float * dest ) {
 
 
 template<int vd, int pd>
-void filter_(const float *input, float *output, int w, int h, int nChannels,const float * spat_f,const float * col_f,
+void filter_(const float *input, const float * ref_image, float *output, int w, int h, int nChannels,const float * spat_f,const float * col_f,
   float * ref,
   float * values_out,
   float * newValues,
@@ -629,9 +637,12 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
     int * entries_table,
   short * keys_table,
   float * matrix_float,
-    int * matrix_int) {
+    int * matrix_int,
+    const bool * reverse_f) {
 
     printf("hello from void filter_(...)\n");
+
+    CUT_CHECK_ERROR("CUDA error on function calling\n");
 
 
     size_t mem_tot_0, mem_free_0, mem_tot_1, mem_free_1;
@@ -642,16 +653,20 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
 
 
     float col[1],spat[1];
+    bool reverse[1];
     float *col_d,*spat_d;
+    bool * reverse_d;
     cudaMalloc(&col_d, sizeof(float));
     cudaMalloc(&spat_d, sizeof(float));
+    cudaMalloc(&reverse_d, sizeof(bool));
 
-    assignParams<<<1,1>>>(spat_f,col_f,spat_d,col_d);
+    assignParams<<<1,1>>>(spat_f,col_f,reverse_f,spat_d,col_d,reverse_d);
     CUT_CHECK_ERROR("assignParams failed\n");
 
 
     cudaMemcpy(col, col_d, sizeof(float), cudaMemcpyDeviceToHost);
     cudaMemcpy(spat, spat_d, sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(reverse, reverse_d, sizeof(bool), cudaMemcpyDeviceToHost);
 
 
     float invColorStdev = 1.0 / col[0];
@@ -660,7 +675,7 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
     int nPixel = w*h; // width x height
 
 
-    fillRef<<<1,1>>>(input, w, h, invSpatialStdev , invColorStdev, ref);
+    fillRef<<<1,1>>>(ref_image, w, h, invSpatialStdev , invColorStdev, ref);
     CUT_CHECK_ERROR("fillRef failed\n");
 
 
@@ -738,7 +753,7 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
     gettimeofday(t+3, NULL);
 
 	  for (int color = 0; color <= pd; color++) {
-	    blur<pd, vd><<<cleanBlocks, cleanBlockSize>>>(nPixel*(pd+1), newValues, color, matrix_int, matrix_float);
+	    blur<pd, vd><<<cleanBlocks, cleanBlockSize>>>(nPixel*(pd+1), newValues, color, matrix_int, matrix_float, reverse);
 	    CUT_CHECK_ERROR("blur failed\n");
 	    newValues = swapHashTableValues(newValues);
 	  }
@@ -749,7 +764,6 @@ void filter_(const float *input, float *output, int w, int h, int nChannels,cons
 
     blocks.y /= (pd+1);
     slice<pd, vd><<<blocks, blockSize>>>(w, h, values_out, matrix_int, matrix_float);
-
     CUT_CHECK_ERROR("slice failed\n");
 
     gettimeofday(t+5, NULL);
@@ -798,7 +812,7 @@ __declspec(dllexport)
 #endif
 
 
-void filter(const float *input, float *output, int pd, int vd, int w, int h, int nChannels,const float * spat_f,const  float * col_f,
+void filter(const float *input, const float * ref_image, float *output, int pd, int vd, int w, int h, int nChannels,const float * spat_f,const  float * col_f,
   float * ref,
   float * values_out,
   float * newValues,
@@ -807,57 +821,60 @@ void filter(const float *input, float *output, int pd, int vd, int w, int h, int
     int * entries_table,
   short * keys_table,
   float * matrix_float,
-    int * matrix_int) {
+    int * matrix_int,
+    const bool * reverse) {
 
     switch (vd*1000 + pd) {
-    case 1001: filter_<1, 1>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 2001: filter_<2, 1>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 3001: filter_<3, 1>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 1002: filter_<1, 2>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 2002: filter_<2, 2>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 3002: filter_<3, 2>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 1003: filter_<1, 3>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 2003: filter_<2, 3>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 3003: filter_<3, 3>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 1004: filter_<1, 4>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 2004: filter_<2, 4>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 3004: filter_<3, 4>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 1005: filter_<1, 5>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 2005: filter_<2, 5>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 3005: filter_<3, 5>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break; // this one
-    case 1006: filter_<1, 6>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 2006: filter_<2, 6>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 3006: filter_<3, 6>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 1007: filter_<1, 7>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 2007: filter_<2, 7>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 3007: filter_<3, 7>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 1008: filter_<1, 8>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 2008: filter_<2, 8>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 3008: filter_<3, 8>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 1009: filter_<1, 9>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 2009: filter_<2, 9>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 3009: filter_<3, 9>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 1010: filter_<1, 10>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 2010: filter_<2, 10>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 3010: filter_<3, 10>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 1011: filter_<1, 11>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 2011: filter_<2, 11>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 3011: filter_<3, 11>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 1012: filter_<1, 12>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 2012: filter_<2, 12>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 3012: filter_<3, 12>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 1013: filter_<1, 13>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 2013: filter_<2, 13>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 3013: filter_<3, 13>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 1014: filter_<1, 14>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 2014: filter_<2, 14>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 3014: filter_<3, 14>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 1015: filter_<1, 15>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 2015: filter_<2, 15>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 3015: filter_<3, 15>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 1016: filter_<1, 16>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 2016: filter_<2, 16>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
-    case 3016: filter_<3, 16>(input, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int); break;
+    case 1001: filter_<1, 1>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 2001: filter_<2, 1>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 3001: filter_<3, 1>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 1002: filter_<1, 2>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 2002: filter_<2, 2>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 3002: filter_<3, 2>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 1003: filter_<1, 3>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 2003: filter_<2, 3>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 3003: filter_<3, 3>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 1004: filter_<1, 4>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 2004: filter_<2, 4>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 3004: filter_<3, 4>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 1005: filter_<1, 5>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 2005: filter_<2, 5>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 3005: filter_<3, 5>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break; // this one
+    case 1006: filter_<1, 6>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 2006: filter_<2, 6>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 3006: filter_<3, 6>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 1007: filter_<1, 7>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 2007: filter_<2, 7>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 3007: filter_<3, 7>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 1008: filter_<1, 8>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 2008: filter_<2, 8>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 3008: filter_<3, 8>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 1009: filter_<1, 9>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 2009: filter_<2, 9>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 3009: filter_<3, 9>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 1010: filter_<1, 10>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 2010: filter_<2, 10>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 3010: filter_<3, 10>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 1011: filter_<1, 11>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 2011: filter_<2, 11>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 3011: filter_<3, 11>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 1012: filter_<1, 12>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 2012: filter_<2, 12>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 3012: filter_<3, 12>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 1013: filter_<1, 13>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 2013: filter_<2, 13>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 3013: filter_<3, 13>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 1014: filter_<1, 14>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 2014: filter_<2, 14>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 3014: filter_<3, 14>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 1015: filter_<1, 15>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 2015: filter_<2, 15>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 3015: filter_<3, 15>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 1016: filter_<1, 16>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 2016: filter_<2, 16>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 3016: filter_<3, 16>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break;
+    case 4005: filter_<4, 5>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break; // new test case
+    case 64005: filter_<64, 5>(input, ref_image, output, w, h, nChannels, spat_f, col_f, ref, values_out, newValues, scaleFactor, values_table, entries_table, keys_table, matrix_float, matrix_int, reverse); break; // case for Ole
     default:
 	printf("Unsupported channel counts. Reference image must have 1 to 16 channels, input image must have 1 to 3 channels\n");
     }
