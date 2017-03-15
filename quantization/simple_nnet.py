@@ -79,9 +79,20 @@ def main():
     updates = tf.train.GradientDescentOptimizer(0.01).minimize(cost)
 
     # Run SGD
-    sess = tf.Session()
+
+    options = tf.RunOptions(output_partition_graphs=True)
+    metadata = tf.RunMetadata()
+    config = tf.ConfigProto(device_count = {'GPU': 0})
+
+    sess = tf.Session(config=config)
     init = tf.initialize_all_variables()
-    sess.run(init)
+    sess.run(init, options=options, run_metadata=metadata)
+
+    print "-->partition_graph_def:"
+    for partition_graph_def in metadata.partition_graphs:
+      print partition_graph_def  # Contains all the nodes that ran on a single device.
+
+
 
     for epoch in range(300):
         # Train with each example

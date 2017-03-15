@@ -1,6 +1,5 @@
 import tensorflow as tf
 # import os
-# import numpy as np
 
 from tensorflow.python.platform import gfile
 
@@ -11,6 +10,9 @@ from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import graph_io
 from tensorflow.python.framework import tensor_util
 from tensorflow.python.framework import graph_util
+
+import copy
+import numpy as np
 
 
 def create_node(op, name, inputs=None):
@@ -35,16 +37,88 @@ def set_attr_dtype(node, key, value):
   except KeyError:
     pass
 
+
+def run_graph():
+
+
+  # Create a new TensorFlow computational graph.
+  graph = tf.Graph()
+
+  with graph.as_default():
+    # Open the graph-def file for binary reading.
+
+    path_fp32 = "/home/jzuern/Dropbox/develop/hiwi_mrt/quantization/tensorflow_inception_graph.pb"
+    path_fp16 = "/home/jzuern/Dropbox/develop/hiwi_mrt/quantization/fp16_graph.pb"
+
+    with tf.gfile.FastGFile(path_fp16, 'rb') as file:
+      # The graph-def is a saved copy of a TensorFlow graph.
+      # First we need to create an empty graph-def.
+      graph_def = tf.GraphDef()
+      # Then we load the proto-buf file into the graph-def.
+      graph_def.ParseFromString(file.read())
+      # Finally we import the graph-def to the default TensorFlow graph.
+      tf.import_graph_def(graph_def, name='')
+
+      # Now graph holds the Inception model from the proto-buf file.
+
+
+    y_pred = graph.get_tensor_by_name("softmax:0")
+
+    # Read the jpeg-image as an array of bytes.
+    image_path = "panda.jpg"
+    image_data = tf.gfile.FastGFile(image_path, 'rb').read()
+
+    # Image is passed in as a jpeg-encoded image.
+    feed_dict = {"DecodeJpeg/contents:0": image_data}
+
+    session = tf.Session(graph=graph)
+
+
+    # Execute the TensorFlow session to get the predicted labels.
+    options = tf.RunOptions(output_partition_graphs=True)
+    metadata = tf.RunMetadata()
+
+    pred = session.run(y_pred, feed_dict=feed_dict, options=options, run_metadata=metadata)
+
+    # Reduce the array to a single dimension.
+    np.set_printoptions(threshold=np.inf)
+    pred = np.squeeze(pred) # this is the prediction
+
+    # get the indices of the top 5 results
+    result = pred.argsort()[-5:][::-1]
+
+    print "Confidence:"
+    for i in result:
+      print i,": ", pred[i]
+
+
+    # print "-->partition_graph_def:"
+    # for partition_graph_def in metadata.partition_graphs:
+    #   for node in partition_graph_def.node:
+    #     print node.name  # Contains all the nodes that ran on a single device.
+
+
+
 def create_fp16_graph():
   """"Creates a graph from saved GraphDef file and returns a Graph object.
   Returns:
-    Graph holding the trained Inception network with all float32 tensors converted to float16 tensors
+    Graph holding the trained Inception network with all float32 Nodes converted to float16 Nodes
   """
 
   # start session
   with tf.Session() as sess:
     model_filename = "/home/jzuern/tensorflow/tensorflow/examples/label_image/data/tensorflow_inception_graph.pb"
     output_filename = '/home/jzuern/Dropbox/develop/hiwi_mrt/quantization/fp16_graph.pb'
+
+    not_convertable_nodes = ["ResizeBilinear", "Cast", "ExpandDims"]
+    input_from_not_convertable_nodes = ["Sub"]
+    add_T_fp16_list = ["pool", "pool_1", "mixed_3/pool", "mixed_8/pool", "mixed_10/tower_2/pool"]
+
+
+    nConvert_nodes = 0
+
+
+
 
     # import graph file
     print("loading graph...")
@@ -55,116 +129,81 @@ def create_fp16_graph():
     fp16_graph_def = graph_pb2.GraphDef()
 
     for old_node in input_graph_def.node:
-      print "..."
 
-      c = False
-      if c == True:
-        print "hello"
-    #   if old_node.attr["dtype"].type == 1 and convert == True: # fp32 node
-    #     print "NODE IS A FLOAT NODE AND NOT IN DO-Not-CONVERT-LIST - CONVERT IT!"
-    #     # if convert == True:
-    #     #     print old_node.name
-    #     #     print old_node.attr["dtype"].type
-    #
-    #     new_node = create_node(old_node.op, old_node.name, [])
-    #     # set_attr_dtype(new_node, "dtype", dtypes.float32) # TODO: float32 to float16
-    #
-    #     # make ndarray from tensor
-    #     tensor = old_node.attr["value"].tensor
-    #
-    #     # convert tensor fp32 to tensor fp16
-    #     # tensor = tf.cast(tensor, tf.dtypes.float16)
-    #
-    #     tensor_value = tensor_util.MakeNdarray(tensor)
-    #
-    #     # make TensorShape
-    #     shape = tensor.tensor_shape
-    #     tensor_shape_list = tensor_util.TensorShapeProtoToList(shape)
-    #
-    #     set_attr_tensor(node=new_node, key='value', value=tensor_value, dtype=dtypes.float32, shape=tensor_shape_list) # TODO: float32 to float16
-
-      else:
-        print "OTHERISE, DO NOTHING!" # fp16 node
-        new_node = node_def_pb2.NodeDef()
-        new_node.CopyFrom(old_node)
-    #   # add new fp16 node to new graph
-
-      fp16_graph_def.node.extend([old_node])
+      new_node = copy.deepcopy(old_node)
 
 
-    # copy old graph into new graph:
-    fp16_graph_def = input_graph_def # dummy
+      if old_node.name in not_convertable_nodes:
+        fp16_graph_def.node.extend([new_node])
+        continue
+
+
+      if old_node.name in input_from_not_convertable_nodes: # found incompatible input node
+        print "found input from not convertable node: ", old_node.name
+        for input_name in old_node.input: # go through inputs of node
+            if input_name in not_convertable_nodes: # found incompatible input
+              print "found input: ", input_name
+              convert_name = "Convert" + str(nConvert_nodes)
+              convert_node = create_node("Cast", convert_name)# Op and Name
+              convert_node.input.append(input_name) # add inconvertable node as input for conversion node
+              convert_node.attr["SrcT"].CopyFrom(attr_value_pb2.AttrValue(type=dtypes.float32.as_datatype_enum))
+              convert_node.attr["DstT"].CopyFrom(attr_value_pb2.AttrValue(type=dtypes.half.as_datatype_enum))
+              new_node.input.extend([convert_node.name]) # add conversion node as input for node
+              new_node.input.remove("Sub/y")
+              new_node.input.remove(input_name) # remove original input
+              new_node.input.extend(["Sub/y"])
+              fp16_graph_def.node.extend([convert_node]) # add inserted conversion node to GraphDef
+              nConvert_nodes += 1
+
+
+      if old_node.attr["dtype"] == attr_value_pb2.AttrValue(type=dtypes.float32.as_datatype_enum): # extract fp32 nodes:
+        print "checkpot - found float32 node with dtype", old_node.name
+        tensor = old_node.attr["value"].tensor
+        tensor_value = tensor_util.MakeNdarray(tensor)
+        tensor_fp16 = tf.cast(tensor_value, tf.half)
+
+        new_node.attr["value"].CopyFrom(attr_value_pb2.AttrValue(tensor=tensor_util.make_tensor_proto(
+          tensor_fp16.eval(),
+          dtype=dtypes.half,
+          shape=tensor_fp16.shape)))
+
+        new_node.attr["dtype"].CopyFrom(attr_value_pb2.AttrValue(type=dtypes.half.as_datatype_enum))
+
+
+      if old_node.name in add_T_fp16_list:
+        new_node.attr["T"].CopyFrom(attr_value_pb2.AttrValue(type=dtypes.half.as_datatype_enum))
+
+
+      if old_node.attr["T"] == attr_value_pb2.AttrValue(type=dtypes.float32.as_datatype_enum): # extract fp32 nodes:
+        print "checkpot - found float32 node with T", old_node.name
+        new_node.attr["T"].CopyFrom(attr_value_pb2.AttrValue(type=dtypes.half.as_datatype_enum))
+        # print old_node
+
+      if old_node.attr["DstT"] == attr_value_pb2.AttrValue(type=dtypes.float32.as_datatype_enum): # extract fp32 nodes:
+        print "checkpot - found float32 node with DstT", old_node.name
+        new_node.attr["DstT"].CopyFrom(attr_value_pb2.AttrValue(type=dtypes.half.as_datatype_enum))
+
+
+
+      # add new fp16 node to new graph
+      fp16_graph_def.node.extend([new_node])
 
 
     print("%d ops in the final graph." % len(fp16_graph_def.node))
 
+
     # write fp16 graph to pb file
     with gfile.FastGFile(output_filename, 'wb') as f:
       f.write(fp16_graph_def.SerializeToString())
+    print "writing ", output_filename, " completed."
+    return fp16_graph_def
 
 
 def main(_):
 
-  create_fp16_graph()
+  graph = create_fp16_graph() # create fp16 graph
+  run_graph() # run graph
 
 
 if __name__ == '__main__':
   tf.app.run()
-
-
-
-
-# ### in FREEZE_GRAPH.PY
-#
-# output_graph_def = graph_pb2.GraphDef()
-#   for input_node in inference_graph.node:
-#     output_node = node_def_pb2.NodeDef()
-#     output_node.op = "Const"
-#     output_node.name = input_node.name
-#     dtype = input_node.attr["dtype"]
-#     data = found_variables[input_node.name]
-#     output_node.attr["dtype"].CopyFrom(dtype)
-#     output_node.attr["value"].CopyFrom(attr_value_pb2.AttrValue(
-#           tensor=tensor_util.make_tensor_proto(data,
-#                                                dtype=dtype.type,
-#                                                shape=data.shape)))
-#     output_graph_def.node.extend([output_node])
-#   return output_graph_def
-
-
-        # copy node attribute
-        # new_node.attr["T"].CopyFrom(attr_value_pb2.AttrValue(type=dtypes.float16.as_datatype_enum))
-        # new_node_tensor_fp16 = tf.cast(new_node_tensor, tf.float16)
-        # new_node.attr["value"].CopyFrom(attr_value_pb2.AttrValue(tensor=tensor_util.make_tensor_proto(new_node_tensor_fp16)))
-        # new_node.attr["value"].CopyFrom(attr_value_pb2.AttrValue(tensor=tensor_util.make_tensor_proto([1, 2], dtypes.float16, [1, 2,]))) # ONLY DUMMY!!
-
-
-
-
-##########################################################################################################
-
-#     print node.attr['dtype']
-#     if node.attr['dtype'] == "float32":
-#         print "found float32 tensor"
-#         tensor = tf.convert_to_tensor(node.attr['value'].tensor.tensor_content)
-#         tensor = tf.decode_raw(tensor, tf.float32)
-#         print "32 bit tensor values:"
-#         print tensor.eval()
-#
-#         tensor_fp16 = tf.cast(tensor, tf.float16)
-#         print "16 bit tensor values:"
-#         print tensor_fp16.eval()
-
-
-## OLE HINWEIS:
-
-# output_graph = graph_pb2.GraphDef()
-#
-# for orig_node in node_map:
-#   new_node = node_def_pb2.NodeDef()
-#   new_node.op = orig_node.op
-#   new_node.name = orig_node.name
-#   new_node.attr["T"].CopyFrom(attr_value_pb2.AttrValue(type=dtypes.float16.as_datatype_enum))
-#   for input_name in orig_node.inputs:
-#     new_node.input.extend([input_name])
-#   output_graph.node.extend([new_node])
