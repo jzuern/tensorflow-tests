@@ -25,10 +25,11 @@ node_modules
 /_python_build
 *.pyc
 __pycache__
-.pdf
+*.pdf
+*.jpg
 /bin
 /.vscode
 /paper
-.png
+*.png
 /CUDA_samples
-.pb
+*.pb
