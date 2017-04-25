@@ -1,0 +1,1 @@
+/usr/bin/c++      CMakeFiles/testStudent.dir/src/Student.cpp.o CMakeFiles/testStudent.dir/src/mainapp.cpp.o  -o testStudent  -L/usr/local/lib -rdynamic -lpng -Wl,-rpath,/usr/local/lib 

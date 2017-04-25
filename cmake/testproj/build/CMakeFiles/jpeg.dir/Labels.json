@@ -1,0 +1,43 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/build/CMakeFiles/jpeg"
+		},
+		{
+			"file" : "/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/build/CMakeFiles/jpeg.rule"
+		},
+		{
+			"file" : "/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/build/CMakeFiles/jpeg-complete.rule"
+		},
+		{
+			"file" : "/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/build/jpeg/src/jpeg-stamp/jpeg-install.rule"
+		},
+		{
+			"file" : "/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/build/jpeg/src/jpeg-stamp/jpeg-mkdir.rule"
+		},
+		{
+			"file" : "/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/build/jpeg/src/jpeg-stamp/jpeg-download.rule"
+		},
+		{
+			"file" : "/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/build/jpeg/src/jpeg-stamp/jpeg-update.rule"
+		},
+		{
+			"file" : "/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/build/jpeg/src/jpeg-stamp/jpeg-patch.rule"
+		},
+		{
+			"file" : "/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/build/jpeg/src/jpeg-stamp/jpeg-configure.rule"
+		},
+		{
+			"file" : "/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/build/jpeg/src/jpeg-stamp/jpeg-build.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"jpeg"
+		],
+		"name" : "jpeg"
+	}
+}

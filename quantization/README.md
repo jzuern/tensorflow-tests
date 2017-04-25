@@ -40,3 +40,8 @@ bazel-bin/tensorflow/python/tools/freeze_graph \
 ------------------------------
 
  export  CUDA_VISIBLE_DEVICES="" for non-GPU calculations
+
+
+TODO 14.03.:
+
+- Performance-Messung und Ergebnisgüte bei 5 Bildern, mit und ohne GPU

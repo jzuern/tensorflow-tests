@@ -1,0 +1,1 @@
+cmd='/usr/bin/cmake;-C/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/build/zlib/tmp/zlib-cache-$<CONFIG>.cmake;-GUnix Makefiles;/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/build/zlib/src/zlib'

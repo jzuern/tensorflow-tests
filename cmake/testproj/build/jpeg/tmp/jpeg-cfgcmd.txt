@@ -1,0 +1,1 @@
+cmd='/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/build/jpeg/src/jpeg/configure;--prefix=/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/build/jpeg/install;--enable-shared=yes;CFLAGS=-fPIC'

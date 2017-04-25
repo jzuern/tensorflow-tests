@@ -1,0 +1,19 @@
+# Hashes of file build rules.
+51aed75f056b071cd8f1c4dcf41e8efe CMakeFiles/jpeg
+146363b6b8d3b2524835a99b8f48234b CMakeFiles/jpeg-complete
+51aed75f056b071cd8f1c4dcf41e8efe CMakeFiles/jpeg_copy_headers_to_destination
+c6a34f7be69770e8a4679bb2777a76e6 CMakeFiles/jpeg_create_destination_dir
+76976438f7b6a01612bdc81c7454243a CMakeFiles/zlib-complete
+fb815fc1e1d7af70cfa160bb23817e8f jpeg/src/jpeg-stamp/jpeg-build
+7bf40b68ba3b5659587cccfabee185c9 jpeg/src/jpeg-stamp/jpeg-configure
+a6deb0d54db97160bfd33b34acf20b58 jpeg/src/jpeg-stamp/jpeg-download
+7a0bb4e082517975845a9bfe35ca9d9d jpeg/src/jpeg-stamp/jpeg-install
+91c88864f5f4affffa740dcfbc48e471 jpeg/src/jpeg-stamp/jpeg-mkdir
+63adf08e610012338b598631300b1005 jpeg/src/jpeg-stamp/jpeg-patch
+4665e0b86ac7a2590eed32c3a907212c jpeg/src/jpeg-stamp/jpeg-update
+c985a3c91b374f78426f333922dc86a1 zlib/src/zlib-stamp/zlib-build
+724cb3f7b146780b6d12c5be0b3b8e16 zlib/src/zlib-stamp/zlib-configure
+cfdd1d3d5605780ed131b51f35abeb76 zlib/src/zlib-stamp/zlib-download
+69c2f208ed659f68112fac84f23ea866 zlib/src/zlib-stamp/zlib-install
+84f7b4c2a099024809a7c3b112207603 zlib/src/zlib-stamp/zlib-mkdir
+23ad79c22f928969c18d192c3b78fdab zlib/src/zlib-stamp/zlib-patch

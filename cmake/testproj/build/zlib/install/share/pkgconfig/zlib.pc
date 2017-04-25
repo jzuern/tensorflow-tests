@@ -1,0 +1,13 @@
+prefix=/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/build/zlib/install
+exec_prefix=/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/build/zlib/install
+libdir=/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/build/zlib/install/lib
+sharedlibdir=/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/build/zlib/install/lib
+includedir=/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/build/zlib/install/include
+
+Name: zlib
+Description: zlib compression library
+Version: 1.2.8
+
+Requires:
+Libs: -L${libdir} -L${sharedlibdir} -lz
+Cflags: -I${includedir}

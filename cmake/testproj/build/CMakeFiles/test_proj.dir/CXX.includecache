@@ -1,0 +1,26 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+../include/Student.h
+string
+-
+
+/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/src/Student.cpp
+iostream
+-
+Student.h
+/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/src/Student.h
+
+/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/src/mainapp.cpp
+Student.h
+/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/src/Student.h
+jpeglib.h
+/home/jzuern/Dropbox/develop/hiwi_mrt/cmake/testproj/src/jpeglib.h
+setjmp.h
+-
+
