@@ -31,3 +31,4 @@ __pycache__
 /paper
 .png
 /CUDA_samples
+.pb
