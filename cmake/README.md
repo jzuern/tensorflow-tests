@@ -4,6 +4,8 @@ Damit wird die libtensorflow.so deutlich kleiner (momentan ist sie über 270 MB 
 
 
 # TODO:
+- cmakelists.txt aufräumen, ole schicken und danach pull request starten
+- eigen kann nicht verlinkt werden, da es ja header only ist
 
 # zlib,gif,png,jpeg, protobuf: cmake-eigenes find_package() Skript
 #eigen3, boringssl, grpc, jsoncpp: online ein FindXY.cmake Skript gefunden
@@ -23,8 +25,3 @@ Damit wird die libtensorflow.so deutlich kleiner (momentan ist sie über 270 MB 
 
 
 
-
-
-standard: libtf_libtensorflow.so:        544.6 MB
-ohne gif,png,jpeg:                       547.7 MB
-ohne gif,png,jpeg,zlib,eigen,jsoncpp     547.3 MB
