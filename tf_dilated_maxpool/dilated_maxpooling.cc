@@ -32,6 +32,7 @@ REGISTER_OP("DilatedMaxPool")
     .Attr("T: realnumbertype = DT_FLOAT")
     .Attr("ksize: list(int) >= 4")
     .Attr("strides: list(int) >= 4")
+    .Attr("dilation_rate: int >= 1")
     .Attr(GetPaddingAttrString())
     .Attr(GetConvnetDataFormatAttrString())
     .Input("input: T")
@@ -81,6 +82,8 @@ class DilatedMaxPoolingOp : public OpKernel {
     OP_REQUIRES(context, ksize_[0] == 1 && stride_[0] == 1,
                 errors::Unimplemented(
                     "Pooling is not yet supported on the batch dimension."));
+    OP_REQUIRES_OK(context, context->GetAttr("dilation_rate", &dilation_rate_));
+
   }
 
   void Compute(OpKernelContext* context) override {
@@ -93,134 +96,108 @@ class DilatedMaxPoolingOp : public OpKernel {
       return;
     }
 
-    Tensor* output = nullptr;
-    OP_REQUIRES_OK(context, context->allocate_output(
-                                0, params.forward_output_shape(), &output));
-
-    if (params.depth_window > 1) { // this results in DepthwiseMaxPool (unneeded)
-    } else {
-      SpatialMaxPool(context, output, tensor_in, params, padding_);
-    }
-  }
-
- // private:
 
 
-  void SpatialMaxPool(OpKernelContext* context, Tensor* output,
-                      const Tensor& tensor_in, const PoolParameters& params,
-                      const Padding& padding) {
-    // On GPU, use Eigen's Spatial Max Pooling.  On CPU, use an
-    // EigenMatrix version that is currently faster than Eigen's
-    // Spatial MaxPooling implementation.
-    //
-    // TODO(vrv): Remove this once we no longer need it.
-    // if (std::is_same<Device, GPUDevice>::value) {
-    //   Eigen::PaddingType pt = BrainPadding2EigenPadding(padding);
-    //   functor::SpatialMaxPooling<Device, T>()(
-    //       context->eigen_device<Device>(), output->tensor<T, 4>(),
-    //       tensor_in.tensor<T, 4>(), params.window_rows, params.window_cols,
-    //       params.row_stride, params.col_stride, pt);
-    // } else {
+    // Create an output tensor
+    Tensor* output_tensor = NULL;
 
-    printf(" Hello From SpatialMaxPool\n");
-      typedef Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>>
-          ConstEigenMatrixMap;
-      typedef Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>>
-          EigenMatrixMap;
+    TensorShape out_shape({params.depth, params.out_width, params.out_height, params.tensor_in_batch});
+    OP_REQUIRES_OK(context, context->allocate_output(0, out_shape,&output_tensor));
 
-      ConstEigenMatrixMap in_mat(tensor_in.flat<T>().data(), params.depth,
-                                 params.tensor_in_cols * params.tensor_in_rows *
-                                     params.tensor_in_batch);
-      EigenMatrixMap out_mat(
-          output->flat<T>().data(), params.depth,
-          params.out_width * params.out_height * params.tensor_in_batch);
+    // SpatialMaxPool(context, output, tensor_in, params, padding_);
+      SpatialMaxPool_jzuern(context, output_tensor, tensor_in, params, dilation_rate_);
 
-      const DeviceBase::CpuWorkerThreads& worker_threads =
-          *(context->device()->tensorflow_cpu_worker_threads());
+    } // void Compute
 
-      printf("1\n");
 
-      // The following code basically does the following:
-      // 1. Flattens the input and output tensors into two dimensional arrays.
-      //    tensor_in_as_matrix:
-      //      depth by (tensor_in_cols * tensor_in_rows * tensor_in_batch)
-      //    output_as_matrix:
-      //      depth by (out_width * out_height * tensor_in_batch)
-      //
-      // 2. Walks through the set of columns in the flattened
-      // tensor_in_as_matrix,
-      //    and updates the corresponding column(s) in output_as_matrix with the
-      //    max value.
-      auto shard = [&params, &in_mat, &out_mat](int64 start, int64 limit) {
 
-        const int32 in_rows = params.tensor_in_rows;
-        const int32 in_cols = params.tensor_in_cols;
-        const int32 pad_rows = params.pad_rows;
-        const int32 pad_cols = params.pad_cols;
-        const int32 window_rows = params.window_rows;
-        const int32 window_cols = params.window_cols;
-        const int32 row_stride = params.row_stride;
-        const int32 col_stride = params.col_stride;
-        const int32 out_height = params.out_height;
-        const int32 out_width = params.out_width;
+  void SpatialMaxPool_jzuern(OpKernelContext* context, Tensor* output,
+                      const Tensor& tensor_in, const PoolParameters& params, const int dilation_rate) {
 
-        {
-          // Initializes the output tensor with MIN<T>.
-          const int32 output_image_size = out_height * out_width * params.depth;
-          EigenMatrixMap out_shard(out_mat.data() + start * output_image_size,
-                                   1, (limit - start) * output_image_size);
-          out_shard.setConstant(Eigen::NumTraits<T>::lowest());
-        }
-        printf("Hello from shard\n");
 
-        for (int32 b = start; b < limit; ++b) {
-          const int32 out_offset_batch = b * out_height;
-          for (int32 h = 0; h < in_rows; ++h) {
-            for (int32 w = 0; w < in_cols; ++w) {
-              // (h_start, h_end) * (w_start, w_end) is the range that the input
-              // vector projects to.
-              const int32 hpad = h + pad_rows;
-              const int32 wpad = w + pad_cols;
-              const int32 h_start = (hpad < window_rows)
-                                        ? 0
-                                        : (hpad - window_rows) / row_stride + 1;
-              const int32 h_end = std::min(hpad / row_stride + 1, out_height);
-              const int32 w_start = (wpad < window_cols)
-                                        ? 0
-                                        : (wpad - window_cols) / col_stride + 1;
-              const int32 w_end = std::min(wpad / col_stride + 1, out_width);
-              // compute elementwise max
-              const int32 in_offset = (b * in_rows + h) * in_cols + w;
-              for (int32 ph = h_start; ph < h_end; ++ph) {
-                const int32 out_offset_base =
-                    (out_offset_batch + ph) * out_width;
-                for (int32 pw = w_start; pw < w_end; ++pw) {
-                  const int32 out_offset = out_offset_base + pw;
-                  out_mat.col(out_offset) =
-                      out_mat.col(out_offset).cwiseMax(in_mat.col(in_offset));
+          // if padding == "VALID":no padding
+          // if padding == "SAME": Input and output layers have the same size.
+
+          // Bugs:
+          // - in greyscale: max values do not seem to be right
+
+
+        auto test_in = tensor_in.tensor<float,4>(); // force conversion to float
+        auto test_out = output->tensor<float,4>();// force conversion to float
+
+        const int nBatch = tensor_in.dim_size(0);
+        printf("nBatch = %i\n", nBatch);
+
+        const int width = tensor_in.dim_size(1);
+        printf("width = %i\n", width);
+
+        const int height = tensor_in.dim_size(2);
+        printf("height = %i\n", height);
+
+        const int nChannels = tensor_in.dim_size(3);
+        printf("nChannels = %i\n", nChannels);
+
+        const int N = test_in.size();
+        printf("N = %i\n", N);
+
+        int dilationH = dilation_rate; // dilation_rate height
+        int dilationW = dilation_rate; // dilation_rate width
+        int dH = params.row_stride; // stride in height
+        int dW = params.col_stride; // stride in width
+        int in_height = params.tensor_in_rows; // input tensor height
+        int in_width = params.tensor_in_cols; // input tensor width
+        int out_height = params.out_height; // input tensor height
+        int out_width = params.out_width; // input tensor width
+        int padH = 0;                        // padding in height --> is zero by default
+        int padW = 0;                         // padding in width --> is zero by default
+        int kH = params.window_rows; // window size in height
+        int kW = params.window_cols; // window size in width
+
+
+        printf("PoolParameters: \n\nin_height = %i, in_width = %i,  \n"
+                                          "window_rows = %i, window_cols = %i \n"
+                                          "row_stride = %i, col_stride = %i, \n"
+                                          "out_height = %i, out_width = %i, \n",
+                                          in_height, in_width, kH ,kW , dH,  dW, out_height,out_width );
+
+
+
+        for (int b = 0; b < nBatch; b++) { // batch
+          for (int c = 0; c < nChannels; c++) { // channel
+            for (int i = 0; i < params.out_height; i++) { // heigth of output image
+              for (int j = 0; j < params.out_width; j++) { // width of output image
+
+                int hstart = i * dH - padH;
+                int wstart = j * dW - padW;
+                int hend = fminf(hstart + (kH - 1) * dilationH + 1, in_height);
+                int wend = fminf(wstart + (kW - 1) * dilationW + 1, in_width);
+                while(hstart < 0) hstart += dilationH;
+                while(wstart < 0) wstart += dilationW;
+
+                float maxval = -9999.9;
+
+                int x,y;
+                for(y = hstart; y < hend; y += dilationH){
+                  for(x = wstart; x < wend; x += dilationW){
+                    float val = test_in(b,y,x,c);
+                    if (val > maxval) maxval = val;
+                  }
                 }
+
+                /* set output to local max */
+                test_out(b,i,j,c) = maxval;
               }
             }
           }
         }
-      }; // auto shard
-      printf("2\n");
 
-      // TODO(andydavis) Consider sharding across batch x rows x cols.
-      // TODO(andydavis) Consider a higher resolution shard cost model.
-      const int64 shard_cost = params.tensor_in_rows * params.tensor_in_cols * params.depth;
-      printf("shard_cost = %i\n", shard_cost);
-      Shard(worker_threads.num_threads, worker_threads.workers,params.tensor_in_batch, shard_cost, shard); //segmentation fault
-
-      printf("Bye from SpatialMaxPool\n");
-
-    // } // if device is CPUDevice
-  }
+  } // void SpatialMaxPool_jzuern
 
   std::vector<int32> ksize_;
   std::vector<int32> stride_;
   Padding padding_;
   TensorFormat data_format_;
+  int dilation_rate_;
 };
 
 
