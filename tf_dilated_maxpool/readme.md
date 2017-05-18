@@ -24,10 +24,11 @@ $ bazel build --config opt //tensorflow/python:nn_ops
 
 
 
-## Doch C++ Custom Op:
-- Brauchen kein Padding, ...
-- GPU Implementierung wichtig
-
+# C++ Custom Op with GPU CUDA:
+```
+$ nvcc --compiler-bindir /usr/bin/gcc-4.8 -std=c++11 -c -o dilated_maxpooling_gpu.cu.o dilated_maxpooling_gpu.cu.cc -I $TF_INC -D GOOGLE_CUDA=1 -x cu -Xcompiler -fPIC
+$ g++ -std=c++11 -shared -o dilated_maxpooling_gpu.so dilated_maxpooling_gpu.cc dilated_maxpooling_gpu.cu.o -I $TF_INC -fPIC -lcudart -D_GLIBCXX_USE_CXX11_ABI=0
+```
 
 # disable gpu usage: export CUDA_VISIBLE_DEVICES=-1
 
