@@ -101,25 +101,29 @@ class DilatedMaxPoolingOp : public OpKernel {
     // Create an output tensor
     Tensor* output_tensor = NULL;
 
-    TensorShape out_shape({params.depth, params.out_width, params.out_height, params.tensor_in_batch});
+    TensorShape out_shape({params.tensor_in_batch, params.out_height, params.out_width, params.depth});
     OP_REQUIRES_OK(context, context->allocate_output(0, out_shape,&output_tensor));
 
-    // SpatialMaxPool(context, output, tensor_in, params, padding_);
-      SpatialMaxPool_jzuern(context, output_tensor, tensor_in, params, dilation_rate_);
+    SpatialMaxPool(context, output_tensor, tensor_in, params, dilation_rate_);
 
-    } // void Compute
-
+  } // void Compute
 
 
-  void SpatialMaxPool_jzuern(OpKernelContext* context, Tensor* output,
+
+  void SpatialMaxPool(OpKernelContext* context, Tensor* output,
                       const Tensor& tensor_in, const PoolParameters& params, const int dilation_rate) {
 
 
           // if padding == "VALID":no padding
           // if padding == "SAME": Input and output layers have the same size.
 
+          // Tests:
+          // - non-quadratic image input .. success
+          // - 3 color channels .. success
+          // - test stride != window_size .. success
+          //- dilation_rate > 1 .. success
           // Bugs:
-          // - in greyscale: max values do not seem to be right
+          // - if multiple color channels: values get mixed up... fixed
 
 
         auto test_in = tensor_in.tensor<float,4>(); // force conversion to float
@@ -174,7 +178,7 @@ class DilatedMaxPoolingOp : public OpKernel {
                 while(hstart < 0) hstart += dilationH;
                 while(wstart < 0) wstart += dilationW;
 
-                float maxval = -9999.9;
+                float maxval = -INFINITY;
 
                 int x,y;
                 for(y = hstart; y < hend; y += dilationH){
@@ -191,7 +195,25 @@ class DilatedMaxPoolingOp : public OpKernel {
           }
         }
 
-  } // void SpatialMaxPool_jzuern
+        // // print input
+        // printf("input image: \n");
+        //
+        // for(int i = 0; i < params.tensor_in_rows; i++){
+        //   for(int j = 0; j < params.tensor_in_cols; j++){
+        //     printf("%f ", test_in(0,i,j,0));
+        //   }
+        //   printf("\n");
+        // }
+        // printf("output image: \n");
+        //
+        // for(int i = 0; i < params.out_height; i++){
+        //   for(int j = 0; j < params.out_width; j++){
+        //     printf("%f ", test_out(0,i,j,0));
+        //   }
+        //   printf("\n");
+        // }
+
+  } // void SpatialMaxPool
 
   std::vector<int32> ksize_;
   std::vector<int32> stride_;
