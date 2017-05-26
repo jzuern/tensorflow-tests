@@ -21,7 +21,6 @@ This will place the .so file in directory /tf_installation/tensorflow/bazel-bin/
 $ bazel build --config opt //tensorflow/python:nn_ops
 ```
 
-- Das Problem in der verlinkten Funktion ist hauptsächlich, dass dilation_rate und stride nicht gleichzeitig Werte > 1 haben können.
 
 
 
@@ -45,3 +44,7 @@ enum Padding {
   VALID = 1,  // No padding.
   SAME = 2,   // Input and output layers have the same size.
 };
+
+
+## To do:
+- CUDA Kernel: - mache Performance studie mit verschiedenen Anzahlen von threadsPerBlock und blocksPerGrid

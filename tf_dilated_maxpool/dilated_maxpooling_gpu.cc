@@ -95,58 +95,40 @@ class DilatedMaxPoolingOp : public OpKernel {
 
   void Compute(OpKernelContext* context) override {
 
-    // GENERIC GPU KERNEL LAUNCH
 
-    // // Grab the input tensor
-    // const Tensor& input_tensor = context->input(0);
-    // auto input = input_tensor.flat<float>();
-    //
-    // // Create an output tensor
-    // Tensor* output_tensor = NULL;
-    // OP_REQUIRES_OK(context, context->allocate_output(0, input_tensor.shape(),
-    //                                                  &output_tensor));
-    // auto output = output_tensor->template flat<int32>();
-    //
-    // // Set all but the first element of the output tensor to 0.
-    // const int N = input.size();
-    // // Call the cuda kernel launcher
-    // DilatedMaxPoolKernelLauncher(input.data(), N, output.data());
-
-    ////////////////////////////////////////////////////////
 
     printf(" Hello From DilatedMaxPoolingOp CUDA Compute\n");
-    const Tensor& tensor_in = context->input(0);
+    const Tensor& in = context->input(0);
     PoolParameters params{context,  ksize_,      stride_,
-                          padding_, FORMAT_NHWC, tensor_in.shape()};
+                          padding_, FORMAT_NHWC, in.shape()};
     if (!context->status().ok()) {
       return;
     }
 
-    auto test_in = tensor_in.tensor<float,4>(); // force conversion to float
+    auto tensor_in = in.tensor<float,4>(); // force conversion to float
 
     // Create an output tensor
     Tensor* output_tensor = NULL;
 
     TensorShape out_shape({params.tensor_in_batch, params.out_height, params.out_width, params.depth});
     OP_REQUIRES_OK(context, context->allocate_output(0, out_shape,&output_tensor));
-    // OP_REQUIRES_OK(context, context->allocate_output(0, tensor_in.shape(),&output_tensor));
 
-    auto test_out = output_tensor->tensor<float,4>();// force conversion to float
+    auto tensor_out = output_tensor->tensor<float,4>();// force conversion to float
 
 
-    const int nBatch = tensor_in.dim_size(0);
+    const int nBatch = in.dim_size(0);
     printf("nBatch = %i\n", nBatch);
 
-    const int width = tensor_in.dim_size(1);
+    const int width = in.dim_size(1);
     printf("width = %i\n", width);
 
-    const int height = tensor_in.dim_size(2);
+    const int height = in.dim_size(2);
     printf("height = %i\n", height);
 
-    const int nChannels = tensor_in.dim_size(3);
+    const int nChannels = in.dim_size(3);
     printf("nChannels = %i\n", nChannels);
 
-    const int N = test_in.size();
+    const int N = tensor_in.size();
     printf("N = %i\n", N);
 
     int dilationH = dilation_rate_; // dilation_rate height
@@ -164,7 +146,7 @@ class DilatedMaxPoolingOp : public OpKernel {
 
 
     // Call the cuda kernel launcher
-    DilatedMaxPoolingKernelLauncher(test_in.data(), N, test_out.data(), dilationH, dilationW,dH,dW,in_height,in_width,nBatch,nChannels,out_height,out_width,padH,padW,kH,kW);
+    DilatedMaxPoolingKernelLauncher(tensor_in.data(), N, tensor_out.data(), dilationH, dilationW,dH,dW,in_height,in_width,nBatch,nChannels,out_height,out_width,padH,padW,kH,kW);
 
   } // void Compute
 
