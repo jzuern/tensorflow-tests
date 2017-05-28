@@ -17,13 +17,6 @@ __global__ void dilated_maxpool_kernel(const float* tensor_in, const int N, floa
     // i : height
     // j : width
 
-    // int idx1_in = nChannels*in_height*in_width;
-    // int idx2_in = in_height*in_width;
-    // int idx3_in = in_width;
-    //
-    // int idx1_out = nChannels*out_height*out_width;
-    // int idx2_out = out_height*out_width;
-    // int idx3_out = out_width;
 
     int idx1_in = in_height*in_width*nChannels;
     int idx2_in = in_width*nChannels;
@@ -36,61 +29,44 @@ __global__ void dilated_maxpool_kernel(const float* tensor_in, const int N, floa
 
     //Make sure the current thread is inside the image bounds
     if(xIndex<out_width && yIndex<out_height){
-    //   printf("PoolParameters: \n\nin_height = %i, in_width = %i,  \n"
-    //                                   "window_rows = %i, window_cols = %i \n"
-    //                                   "row_stride = %i, col_stride = %i, \n"
-    //                                   "out_height = %i, out_width = %i, \n",
-    //                                   in_height, in_width, kH ,kW , dH,  dW, out_height,out_width );
 
-          // printf("Hello from Thread with xIndex = %i, yIndex = %i\n ", xIndex,yIndex);
+      int b = 0; // current batch
+      for (int c = 0; c < nChannels; c++) { // channel
 
-            int b = 0; // current batch
-            for (int c = 0; c < nChannels; c++) { // channel
+        int i = yIndex;
+        int j = xIndex;
 
-              int i = yIndex;
-              int j = xIndex;
+        int hstart = i * dH - padH;
+        int wstart = j * dW - padW;
 
-              int hstart = i * dH - padH;
-              int wstart = j * dW - padW;
+        int hend = fminf(hstart + (kH - 1) * dilationH + 1, in_height);
+        int wend = fminf(wstart + (kW - 1) * dilationW + 1, in_width);
+        while(hstart < 0) hstart += dilationH;
+        while(wstart < 0) wstart += dilationW;
 
-              int hend = fminf(hstart + (kH - 1) * dilationH + 1, in_height);
-              int wend = fminf(wstart + (kW - 1) * dilationW + 1, in_width);
-              while(hstart < 0) hstart += dilationH;
-              while(wstart < 0) wstart += dilationW;
+        float maxval = -INFINITY;
 
-              float maxval = -INFINITY;
-
-              int x,y;
-              for(y = hstart; y < hend; y += dilationH){
-                for(x = wstart; x < wend; x += dilationW){
-
-                  // int idx = b*idx1_in + c * idx2_in + y*idx3_in + x;
-                  int idx = b*idx1_in + y * idx2_in + x*idx3_in + c;
-
-                  float val = tensor_in[idx];
-
-                  if (val > maxval) maxval = val;
-                }
-              }
-
-            /* set output to local max */
-            // int idx = b*idx1_out + c * idx2_out + i*idx3_out + j;
-            int idx = b*idx1_out + i * idx2_out + j*idx3_out + c;
-
-            tensor_out[idx] = maxval;
+        int x,y;
+        for(y = hstart; y < hend; y += dilationH){
+          for(x = wstart; x < wend; x += dilationW){
+            int idx = b*idx1_in + y * idx2_in + x*idx3_in + c;
+            float val = tensor_in[idx];
+            if (val > maxval) maxval = val;
           }
-        // } // batch entry loop
-      }// if !outofbounds
+        }
 
+        /* set output to local max */
+        int idx = b*idx1_out + i * idx2_out + j*idx3_out + c;
+        tensor_out[idx] = maxval;
+      }
+    }// if !outofbounds
 }
 
 void DilatedMaxPoolingKernelLauncher(const float* tensor_in, const int N, float* tensor_out, const int dilationH, const int dilationW,
                                 const int dH, const int dW, const int in_height, const int in_width, const int nBatch, const int nChannels,
                                 const int out_height, const int out_width, const int padH, const int padW, const int kH, const int kW){
 
-
-    /*
-    * Specify a block size. 256 threads per block are sufficient.
+    /*256 threads per block are sufficient.
     * It can be increased, but keep in mind the limitations of the GPU.
     * Older GPUs allow maximum 512 threads per block.
     * Current GPUs allow maximum 1024 threads per block
@@ -98,8 +74,7 @@ void DilatedMaxPoolingKernelLauncher(const float* tensor_in, const int N, float*
 
     dim3 threadsPerBlock(16,16);  //16*16 = 256
 
-    /*
-     * Specify the grid size for the GPU.
+    /* Specify the grid size for the GPU.
      * Make it generalized, so that the size of grid changes according to the input image size
      */
 
@@ -111,13 +86,13 @@ void DilatedMaxPoolingKernelLauncher(const float* tensor_in, const int N, float*
                           blocksPerGrid.x,blocksPerGrid.y,threadsPerBlock.x,threadsPerBlock.y);
 
 
+  float * batch_pointer_in = (float *)tensor_in; // pointer to current batch entry for input image
+  float * batch_pointer_out = tensor_out; // pointer to current batch entry for output image
+
   cudaEvent_t start, stop;
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
   cudaEventRecord(start);
-
-  float * batch_pointer_in = (float *)tensor_in; // pointer to current batch entry for input image
-  float * batch_pointer_out = tensor_out; // pointer to current batch entry for output image
 
   // outer loop through batch entries:
   for (int b = 0; b < nBatch; b++){
@@ -132,7 +107,6 @@ void DilatedMaxPoolingKernelLauncher(const float* tensor_in, const int N, float*
   float milliseconds = 0;
   cudaEventElapsedTime(&milliseconds, start, stop);
   printf("Executing all kernels took %f miliseconds\n", milliseconds);
-
 }
 
 #endif // CUDA

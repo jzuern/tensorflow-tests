@@ -115,19 +115,14 @@ class DilatedMaxPoolingOp : public OpKernel {
 
     auto tensor_out = output_tensor->tensor<float,4>();// force conversion to float
 
-
     const int nBatch = in.dim_size(0);
     printf("nBatch = %i\n", nBatch);
-
     const int width = in.dim_size(1);
     printf("width = %i\n", width);
-
     const int height = in.dim_size(2);
     printf("height = %i\n", height);
-
     const int nChannels = in.dim_size(3);
     printf("nChannels = %i\n", nChannels);
-
     const int N = tensor_in.size();
     printf("N = %i\n", N);
 
@@ -156,8 +151,6 @@ class DilatedMaxPoolingOp : public OpKernel {
   Padding padding_;
   TensorFormat data_format_;
   int dilation_rate_;
-
-
 };
 
 REGISTER_KERNEL_BUILDER(Name("DilatedMaxPooling").Device(DEVICE_GPU), DilatedMaxPoolingOp);
