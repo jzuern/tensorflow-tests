@@ -8,7 +8,7 @@ python: 	2.7.12
 
 CUDA compute capability = 3.0 (-arch=sm_20)
 
-## Hardware 
+## Hardware
 GPU: GT 755M
 
 
@@ -92,9 +92,3 @@ Lösung: in tensorflow/tensorflow.bzl die Definition der Funktion tf_custom_op_l
 ### Other
 - im Makefile immer gcc-4.8 als compiler angeben (Kompabilität)
 - Musste bei bazel makefile änderungen vornehmen ( siehe hier: https://github.com/tensorflow/tensorflow/issues/1066#issuecomment-200580370)
- 
-
-
-
-
-
